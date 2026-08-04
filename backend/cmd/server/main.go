@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -11,7 +10,9 @@ import (
 	"github.com/Aayx2hOG/automata/internal/api"
 	"github.com/Aayx2hOG/automata/internal/config"
 	"github.com/Aayx2hOG/automata/internal/database"
+	"github.com/Aayx2hOG/automata/internal/telemetry"
 	"github.com/joho/godotenv"
+	"go.uber.org/zap"
 )
 
 func main() {
@@ -24,20 +25,28 @@ func main() {
 	}
 	log.Printf("Automata starting in %v mode", cfg.Env)
 
+	logger, err := telemetry.NewLogger(cfg.Env)
+	if err != nil {
+		log.Fatalf("logger error: %v", err)
+	}
+	defer logger.Sync()
+
+	logger.Info("automata starting", zap.String("env", cfg.Env))
+
 	ctx := context.Background()
 
 	pool, err := database.NewPostgresPool(ctx, cfg.Database.URL, cfg.Database.MaxConns)
 	if err != nil {
-		log.Fatalf("database error: %v", err)
+		logger.Fatal("database error: %v", zap.Error(err))
 	}
 	defer pool.Close()
-	fmt.Println("Connected to Postgres")
+	logger.Info("Connected to Postgres")
 
-	srv := api.NewServer(cfg.HTTP.Port, cfg.HTTP.ShutdownTimeout, pool)
+	srv := api.NewServer(cfg.HTTP.Port, cfg.HTTP.ShutdownTimeout, pool, logger, cfg.HTTP.AllowedOriginsList())
 
 	go func() {
 		if err := srv.StartServer(); err != nil {
-			log.Println(err)
+			logger.Info("server stopped", zap.Error(err))
 		}
 	}()
 
@@ -49,7 +58,7 @@ func main() {
 	defer cancel()
 
 	if err := srv.ShutdownServer(shutdownCtx); err != nil {
-		log.Fatalf("Forced shutdown: %v", err)
+		logger.Fatal("Forced shutdown: %v", zap.Error(err))
 	}
-	log.Println("Server exited cleanly")
+	logger.Info("server exited cleanly")
 }

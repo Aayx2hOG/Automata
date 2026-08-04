@@ -18,6 +18,7 @@ type Config struct {
 type HTTPConfig struct {
 	Port            int           `mapstructure:"port"`
 	ShutdownTimeout time.Duration `mapstructure:"shutdown_timeout"`
+	AllowedOrigins  string        `mapstructure:"allowed_origins"`
 }
 
 type DatabaseConfig struct {
@@ -29,6 +30,17 @@ type AuthConfig struct {
 	JWTSecret       string        `mapstructure:"jwt_secret"`
 	AccessTokenTTL  time.Duration `mapstructure:"access_token_ttl"`
 	RefreshTokenTTL time.Duration `mapstructure:"refresh_token_ttl"`
+}
+
+func (c HTTPConfig) AllowedOriginsList() []string {
+	parts := strings.Split(c.AllowedOrigins, ",")
+	origins := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if trimmed := strings.TrimSpace(p); trimmed != "" {
+			origins = append(origins, trimmed)
+		}
+	}
+	return origins
 }
 
 func Load() (*Config, error) {
