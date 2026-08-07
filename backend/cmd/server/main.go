@@ -8,8 +8,11 @@ import (
 	"syscall"
 
 	"github.com/Aayx2hOG/automata/internal/api"
+	"github.com/Aayx2hOG/automata/internal/auth"
 	"github.com/Aayx2hOG/automata/internal/config"
 	"github.com/Aayx2hOG/automata/internal/database"
+	"github.com/Aayx2hOG/automata/internal/repositories"
+	"github.com/Aayx2hOG/automata/internal/services"
 	"github.com/Aayx2hOG/automata/internal/telemetry"
 	"github.com/joho/godotenv"
 	"go.uber.org/zap"
@@ -42,7 +45,12 @@ func main() {
 	defer pool.Close()
 	logger.Info("Connected to Postgres")
 
-	srv := api.NewServer(cfg.HTTP.Port, cfg.HTTP.ShutdownTimeout, pool, logger, cfg.HTTP.AllowedOriginsList())
+	userRepo := repositories.NewUserRepository(pool)
+	refreshTokenRepo := repositories.NewRefreshTokenRepository(pool)
+	jwtManager := auth.NewJWTManager(cfg.Auth.JWTSecret, cfg.Auth.AccessTokenTTL)
+	authService := services.NewAuthService(userRepo, refreshTokenRepo, jwtManager, cfg.Auth.RefreshTokenTTL)
+
+	srv := api.NewServer(cfg.HTTP.Port, cfg.HTTP.ShutdownTimeout, pool, logger, cfg.HTTP.AllowedOriginsList(), authService)
 
 	go func() {
 		if err := srv.StartServer(); err != nil {

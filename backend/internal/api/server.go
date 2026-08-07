@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/Aayx2hOG/automata/internal/services"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
 )
@@ -15,11 +16,11 @@ type Server struct {
 	logger     *zap.Logger
 }
 
-func NewServer(port int, shutdownTimeout time.Duration, pool *pgxpool.Pool, logger *zap.Logger, allowedOrigins []string) *Server {
+func NewServer(port int, shutdownTimeout time.Duration, pool *pgxpool.Pool, logger *zap.Logger, allowedOrigins []string, authService *services.AuthService) *Server {
 	return &Server{
 		httpServer: &http.Server{
 			Addr:         fmt.Sprintf(":%d", port),
-			Handler:      NewRouter(pool, logger, allowedOrigins),
+			Handler:      NewRouter(pool, logger, allowedOrigins, authService),
 			ReadTimeout:  10 * time.Second,
 			WriteTimeout: 10 * time.Second,
 		},

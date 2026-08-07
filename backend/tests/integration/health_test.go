@@ -11,7 +11,7 @@ import (
 
 func TestHealthEndpoint_WithoutDB(t *testing.T) {
 	logger := zap.NewNop()
-	router := api.NewRouter(nil, logger, []string{"http://localhost:3000"})
+	router := api.NewRouter(nil, logger, []string{"http://localhost:3000"}, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
 	req.Header.Set("Origin", "http://localhost:3000")
@@ -26,7 +26,7 @@ func TestHealthEndpoint_WithoutDB(t *testing.T) {
 
 func TestHealthEndpoint_RejectsDisallowedOrigin(t *testing.T) {
 	logger := zap.NewNop()
-	router := api.NewRouter(nil, logger, []string{"http://localhost:3000"})
+	router := api.NewRouter(nil, logger, []string{"http://localhost:3000"}, nil)
 
 	req := httptest.NewRequest(http.MethodOptions, "/healthz", nil)
 	req.Header.Set("Origin", "http://shit.shit.com")
