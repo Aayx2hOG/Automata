@@ -39,9 +39,11 @@ type AuthResult struct {
 }
 
 func (s *AuthService) Register(ctx context.Context, email, password string) (*AuthResult, error) {
-	if _, err := s.users.GetByEmail(ctx, email); err != nil {
+	existingUser, err := s.users.GetByEmail(ctx, email)
+	if err == nil && existingUser != nil {
 		return nil, models.ErrorUserAlreadyExists
-	} else if errors.Is(err, models.ErrorUserNotFound) {
+	}
+	if err != nil && !errors.Is(err, models.ErrorUserNotFound) {
 		return nil, err
 	}
 	hash, err := auth.HashPassword(password, auth.DefaultArgon2Params())
