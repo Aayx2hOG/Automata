@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"time"
 
+	appAuth "github.com/Aayx2hOG/automata/internal/auth"
+	"github.com/Aayx2hOG/automata/internal/repositories"
 	"github.com/Aayx2hOG/automata/internal/services"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
@@ -16,11 +18,11 @@ type Server struct {
 	logger     *zap.Logger
 }
 
-func NewServer(port int, shutdownTimeout time.Duration, pool *pgxpool.Pool, logger *zap.Logger, allowedOrigins []string, authService *services.AuthService) *Server {
+func NewServer(port int, shutdownTimeout time.Duration, pool *pgxpool.Pool, logger *zap.Logger, allowedOrigins []string, authService *services.AuthService, userRepo repositories.UserRepository, jwtManager *appAuth.JWTManager) *Server {
 	return &Server{
 		httpServer: &http.Server{
 			Addr:         fmt.Sprintf(":%d", port),
-			Handler:      NewRouter(pool, logger, allowedOrigins, authService),
+			Handler:      NewRouter(pool, logger, allowedOrigins, authService, userRepo, jwtManager),
 			ReadTimeout:  10 * time.Second,
 			WriteTimeout: 10 * time.Second,
 		},
