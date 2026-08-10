@@ -19,6 +19,7 @@ import (
 func NewRouter(pool *pgxpool.Pool, logger *zap.Logger, allowedOrigins []string, authService *services.AuthService, userRepo repositories.UserRepository, jwtManager *appAuth.JWTManager) http.Handler {
 	r := chi.NewRouter()
 
+	r.Use(middleware.ClientIPFromRemoteAddr)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.RequestID)
 	r.Use(appMiddleware.RequestLogger(logger))
@@ -32,7 +33,9 @@ func NewRouter(pool *pgxpool.Pool, logger *zap.Logger, allowedOrigins []string, 
 	r.Get("/healthz", handlers.HealthCheck(pool, logger))
 
 	authHandler := handlers.NewAuthHandler(authService, logger)
+	authLimiter := appMiddleware.NewRateLimiter(0.5, 5)
 	r.Route("/auth", func(r chi.Router) {
+		r.Use(authLimiter.Middleware)
 		r.Post("/register", authHandler.Register)
 		r.Post("/login", authHandler.Login)
 		r.Post("/refresh", authHandler.Refresh)

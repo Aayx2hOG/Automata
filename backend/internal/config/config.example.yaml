@@ -1,0 +1,20 @@
+# Automata backend configuration.
+# Copy relevant values into environment variables or a local config.yaml
+# for development. In production, use real environment variables —
+# never commit actual secrets to this file or config.yaml.
+
+env: development # development | staging | production
+
+http:
+  port: 8080
+  shutdown_timeout: 10s
+  allowed_origins: http://localhost:3000 # comma-separated list
+
+database:
+  url: postgres://automata:automata@localhost:5432/automata?sslmode=disable
+  max_conns: 10
+
+auth:
+  jwt_secret: change-me-to-a-random-32-byte-string # required, min 32 chars
+  access_token_ttl: 15m
+  refresh_token_ttl: 168h # 7 days

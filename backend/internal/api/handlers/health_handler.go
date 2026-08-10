@@ -11,6 +11,11 @@ import (
 func HealthCheck(pool *pgxpool.Pool, logger *zap.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
+		if pool == nil {
+			w.WriteHeader(http.StatusOK)
+			writeJSON(w, logger, map[string]string{"Status": "ok", "db": "not_configured"})
+			return
+		}
 
 		if err := pool.Ping(r.Context()); err != nil {
 			w.WriteHeader(http.StatusServiceUnavailable)
