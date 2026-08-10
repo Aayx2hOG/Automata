@@ -7,8 +7,11 @@ import (
 
 	"github.com/Aayx2hOG/automata/internal/models"
 	"github.com/Aayx2hOG/automata/internal/services"
+	"github.com/go-playground/validator/v10"
 	"go.uber.org/zap"
 )
+
+var validate = validator.New()
 
 type AuthHandler struct {
 	authService *services.AuthService
@@ -23,17 +26,17 @@ func NewAuthHandler(authService *services.AuthService, logger *zap.Logger) *Auth
 }
 
 type registerRequest struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Email    string `json:"email" validate:"required,email,max=255"`
+	Password string `json:"password" validate:"required,min=8,max=72"`
 }
 
 type loginRequest struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Email    string `json:"email" validate:"required,email"`
+	Password string `json:"password" validate:"required"`
 }
 
 type refreshRequest struct {
-	RefreshToken string `json:"refresh_token"`
+	RefreshToken string `json:"refresh_token" validate:"required"`
 }
 
 type AuthResponse struct {
@@ -48,19 +51,15 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		respondError(w, h.logger, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	if req.Email == "" || len(req.Password) < 8 {
-		respondError(w, h.logger, http.StatusBadRequest, "email and password of atleast 8 characters are required")
+
+	if err := validate.Struct(req); err != nil {
+		respondError(w, h.logger, http.StatusBadRequest, validationMessage(err))
 		return
 	}
 
 	result, err := h.authService.Register(r.Context(), req.Email, req.Password)
 	if err != nil {
-		if errors.Is(err, models.ErrorUserAlreadyExists) {
-			respondError(w, h.logger, http.StatusConflict, "a user with this email already exists")
-			return
-		}
-		h.logger.Error("register failed", zap.Error(err))
-		respondError(w, h.logger, http.StatusInternalServerError, "unable to register user")
+		handleAuthErrors(w, h.logger, err)
 		return
 	}
 	respondJSON(w, h.logger, http.StatusCreated, AuthResponse{
@@ -78,14 +77,14 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := validate.Struct(req); err != nil {
+		respondError(w, h.logger, http.StatusBadRequest, validationMessage(err))
+		return
+	}
+
 	result, err := h.authService.Login(r.Context(), req.Email, req.Password)
 	if err != nil {
-		if errors.Is(err, models.ErrorInvalidCredentials) {
-			respondError(w, h.logger, http.StatusUnauthorized, "invalid email or password")
-			return
-		}
-		h.logger.Error("login failed", zap.Error(err))
-		respondError(w, h.logger, http.StatusInternalServerError, "unable to log in")
+		handleAuthErrors(w, h.logger, err)
 		return
 	}
 
@@ -103,14 +102,14 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := validate.Struct(req); err != nil {
+		respondError(w, h.logger, http.StatusBadRequest, validationMessage(err))
+		return
+	}
+
 	result, err := h.authService.Refresh(r.Context(), req.RefreshToken)
 	if err != nil {
-		if errors.Is(err, models.ErrorInvalidToken) || errors.Is(err, models.ErrorTokenRevoked) {
-			respondError(w, h.logger, http.StatusUnauthorized, "invalid or expired refresh token")
-			return
-		}
-		h.logger.Error("refresh failed", zap.Error(err))
-		respondError(w, h.logger, http.StatusInternalServerError, "unable to refresh refresh token")
+		handleAuthErrors(w, h.logger, err)
 		return
 	}
 
@@ -128,11 +127,35 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := validate.Struct(req); err != nil {
+		respondError(w, h.logger, http.StatusBadRequest, validationMessage(err))
+		return
+	}
+
 	if err := h.authService.Logout(r.Context(), req.RefreshToken); err != nil {
-		h.logger.Error("logout failed", zap.Error(err))
-		respondError(w, h.logger, http.StatusInternalServerError, "unable to logout")
+		handleAuthErrors(w, h.logger, err)
 		return
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func validationMessage(err error) string {
+	ve := validator.ValidationErrors{}
+	if errors.As(err, &ve) && len(ve) > 0 {
+		f := ve[0]
+		switch f.Tag() {
+		case "required":
+			return f.Field() + " is required"
+		case "email":
+			return "email must be a valid email addresss"
+		case "min":
+			return f.Field() + " must be atleast " + f.Param() + " characters"
+		case "max":
+			return f.Field() + " must be atleast " + f.Param() + " characters"
+		default:
+			return f.Field() + " is invalid"
+		}
+	}
+	return "invalid request"
 }

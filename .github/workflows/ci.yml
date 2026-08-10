@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: automata
+          POSTGRES_PASSWORD: automata
+          POSTGRES_DB: automata
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U automata"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Build
+        run: go build ./...
+
+      - name: Run migrations
+        run: |
+          go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+          migrate -path internal/database/migrations -database "postgres://automata:automata@localhost:5432/automata?sslmode=disable" up
+        env:
+          DATABASE_URL: postgres://automata:automata@localhost:5432/automata?sslmode=disable
+
+      - name: Test
+        run: go test ./... -race -cover
+        env:
+          DATABASE_URL: postgres://automata:automata@localhost:5432/automata?sslmode=disable
+          JWT_SECRET: ci-test-secret-do-not-use-in-production-ok
+          ENV: development
