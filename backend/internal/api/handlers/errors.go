@@ -29,5 +29,5 @@ func handleAuthErrors(w http.ResponseWriter, logger *zap.Logger, err error) {
 	}
 
 	logger.Error("unexpected auth error", zap.Error(err))
-	respondError(w, logger, http.StatusInternalServerError, "an unexpected error occured")
+	respondError(w, logger, http.StatusInternalServerError, "an unexpected error occurred")
 }

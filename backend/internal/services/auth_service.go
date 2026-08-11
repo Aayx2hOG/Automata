@@ -8,7 +8,6 @@ import (
 	"github.com/Aayx2hOG/automata/internal/auth"
 	"github.com/Aayx2hOG/automata/internal/models"
 	"github.com/Aayx2hOG/automata/internal/repositories"
-	"github.com/google/uuid"
 )
 
 type AuthService struct {
@@ -139,5 +138,3 @@ func (s *AuthService) issueTokens(ctx context.Context, user *models.User) (*Auth
 		RefreshToken: rawRefreshToken,
 	}, nil
 }
-
-var _ = uuid.UUID{}

@@ -47,6 +47,7 @@ type AuthResponse struct {
 
 func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	req := registerRequest{}
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		respondError(w, h.logger, http.StatusBadRequest, "invalid request body")
 		return
@@ -71,6 +72,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	req := loginRequest{}
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		respondError(w, h.logger, http.StatusBadRequest, "invalid request body")
@@ -97,6 +99,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 	req := refreshRequest{}
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		respondError(w, h.logger, http.StatusBadRequest, "invalid request body")
 		return
@@ -122,6 +125,7 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 
 func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	req := refreshRequest{}
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		respondError(w, h.logger, http.StatusBadRequest, "invalid request body")
 		return
@@ -148,11 +152,11 @@ func validationMessage(err error) string {
 		case "required":
 			return f.Field() + " is required"
 		case "email":
-			return "email must be a valid email addresss"
+			return "email must be a valid email address"
 		case "min":
-			return f.Field() + " must be atleast " + f.Param() + " characters"
+			return f.Field() + " must be at least " + f.Param() + " characters"
 		case "max":
-			return f.Field() + " must be atleast " + f.Param() + " characters"
+			return f.Field() + " must not exceed " + f.Param() + " characters"
 		default:
 			return f.Field() + " is invalid"
 		}

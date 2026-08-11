@@ -114,12 +114,17 @@ func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		limiter := rl.getLimiter(clientIP(r))
 		if limiter != nil {
-			if !limiter.Allow() {
-				rsv := limiter.Reserve()
-				if rsv.OK() {
-					delay := rsv.Delay()
-					w.Header().Set("Retry-After", fmt.Sprintf("%.0f", delay.Seconds()))
-				}
+			rsv := limiter.Reserve()
+			if !rsv.OK() {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusTooManyRequests)
+				w.Write([]byte(`{"error":"too many requests, please try again later"}`))
+				return
+			}
+			delay := rsv.Delay()
+			if delay > 0 {
+				rsv.Cancel()
+				w.Header().Set("Retry-After", fmt.Sprintf("%.0f", delay.Seconds()))
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusTooManyRequests)
 				w.Write([]byte(`{"error":"too many requests, please try again later"}`))

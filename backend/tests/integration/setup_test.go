@@ -34,7 +34,7 @@ func setupTestEnv(t *testing.T) *testEnv {
 
 	jwtSecret := os.Getenv("JWT_SECRET")
 	if len(jwtSecret) < 32 {
-		t.Skip("JWT_SECRET not set or too short; skipping integraiton tests")
+		t.Skip("JWT_SECRET not set or too short; skipping integration tests")
 	}
 
 	logger, err := telemetry.NewLogger("development")

@@ -3,11 +3,11 @@ package models
 import "errors"
 
 var (
-	ErrorUserNotFound       = errors.New("User not found.")
-	ErrorUserAlreadyExists  = errors.New("User already exists.")
-	ErrorInvalidCredentials = errors.New("Invalid Email or Password.")
-	ErrorInvalidToken       = errors.New("Invalid or expired Token.")
-	ErrorTokenRevoked       = errors.New("Token has been revoked.")
+	ErrorUserNotFound       = errors.New("user not found")
+	ErrorUserAlreadyExists  = errors.New("user already exists")
+	ErrorInvalidCredentials = errors.New("invalid email or password")
+	ErrorInvalidToken       = errors.New("invalid or expired token")
+	ErrorTokenRevoked       = errors.New("token has been revoked")
 )
 
 type AppError struct {

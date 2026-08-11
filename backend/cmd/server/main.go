@@ -40,7 +40,7 @@ func main() {
 
 	pool, err := database.NewPostgresPool(ctx, cfg.Database.URL, cfg.Database.MaxConns)
 	if err != nil {
-		logger.Fatal("database error: %v", zap.Error(err))
+		logger.Fatal("database connection failed", zap.Error(err))
 	}
 	defer pool.Close()
 	logger.Info("Connected to Postgres")
@@ -66,7 +66,7 @@ func main() {
 	defer cancel()
 
 	if err := srv.ShutdownServer(shutdownCtx); err != nil {
-		logger.Fatal("Forced shutdown: %v", zap.Error(err))
+		logger.Fatal("forced shutdown failed", zap.Error(err))
 	}
 	logger.Info("server exited cleanly")
 }

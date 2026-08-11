@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -10,28 +9,18 @@ import (
 
 func HealthCheck(pool *pgxpool.Pool, logger *zap.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
 		if pool == nil {
-			w.WriteHeader(http.StatusOK)
-			writeJSON(w, logger, map[string]string{"Status": "ok", "db": "not_configured"})
+			respondJSON(w, logger, http.StatusOK, map[string]string{"status": "ok", "db": "not_configured"})
 			return
 		}
 
 		if err := pool.Ping(r.Context()); err != nil {
-			w.WriteHeader(http.StatusServiceUnavailable)
-			writeJSON(w, logger, map[string]string{"status": "error", "db": "unreachable"})
+			respondJSON(w, logger, http.StatusServiceUnavailable, map[string]string{"status": "error", "db": "unreachable"})
 			return
 		}
-		w.WriteHeader(http.StatusOK)
-		writeJSON(w, logger, map[string]string{
-			"Status": "ok",
+		respondJSON(w, logger, http.StatusOK, map[string]string{
+			"status": "ok",
 			"db":     "connected",
 		})
-	}
-}
-
-func writeJSON(w http.ResponseWriter, logger *zap.Logger, payload map[string]string) {
-	if err := json.NewEncoder(w).Encode(payload); err != nil {
-		logger.Error("failed to encode response:", zap.Error(err))
 	}
 }
