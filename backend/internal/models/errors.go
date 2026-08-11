@@ -8,6 +8,9 @@ var (
 	ErrorInvalidCredentials = errors.New("invalid email or password")
 	ErrorInvalidToken       = errors.New("invalid or expired token")
 	ErrorTokenRevoked       = errors.New("token has been revoked")
+	ErrWorkflowNotFound     = errors.New("workflow not found")
+	ErrInvalidWorkflowGraph = errors.New("invalid workflow graph")
+	ErrCyclicWorkflowGraph  = errors.New("workflow graph contains a cycle")
 )
 
 type AppError struct {
