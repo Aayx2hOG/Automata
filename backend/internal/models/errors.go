@@ -11,6 +11,7 @@ var (
 	ErrWorkflowNotFound     = errors.New("workflow not found")
 	ErrInvalidWorkflowGraph = errors.New("invalid workflow graph")
 	ErrCyclicWorkflowGraph  = errors.New("workflow graph contains a cycle")
+	ErrorWorkflowInactive   = errors.New("workflow is inactive")
 )
 
 type AppError struct {

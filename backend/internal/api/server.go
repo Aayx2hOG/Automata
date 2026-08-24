@@ -18,11 +18,11 @@ type Server struct {
 	logger     *zap.Logger
 }
 
-func NewServer(port int, shutdownTimeout time.Duration, pool *pgxpool.Pool, logger *zap.Logger, allowedOrigins []string, authService *services.AuthService, userRepo repositories.UserRepository, jwtManager *appAuth.JWTManager) *Server {
+func NewServer(port int, shutdownTimeout time.Duration, pool *pgxpool.Pool, logger *zap.Logger, allowedOrigins []string, authService *services.AuthService, workflowService *services.WorkflowService, userRepo repositories.UserRepository, jwtManager *appAuth.JWTManager) *Server {
 	return &Server{
 		httpServer: &http.Server{
 			Addr:         fmt.Sprintf(":%d", port),
-			Handler:      NewRouter(pool, logger, allowedOrigins, authService, userRepo, jwtManager),
+			Handler:      NewRouter(pool, logger, allowedOrigins, authService, workflowService, userRepo, jwtManager),
 			ReadTimeout:  10 * time.Second,
 			WriteTimeout: 10 * time.Second,
 		},

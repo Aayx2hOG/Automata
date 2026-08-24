@@ -16,7 +16,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func NewRouter(pool *pgxpool.Pool, logger *zap.Logger, allowedOrigins []string, authService *services.AuthService, userRepo repositories.UserRepository, jwtManager *appAuth.JWTManager) http.Handler {
+func NewRouter(pool *pgxpool.Pool, logger *zap.Logger, allowedOrigins []string, authService *services.AuthService, workflowService *services.WorkflowService, userRepo repositories.UserRepository, jwtManager *appAuth.JWTManager) http.Handler {
 	r := chi.NewRouter()
 
 	r.Use(middleware.ClientIPFromRemoteAddr)
@@ -46,6 +46,15 @@ func NewRouter(pool *pgxpool.Pool, logger *zap.Logger, allowedOrigins []string, 
 	r.Route("/users", func(r chi.Router) {
 		r.Use(appMiddleware.RequireAuth(jwtManager))
 		r.Get("/me", userHandler.Me)
+	})
+
+	workflowHandler := handlers.NewWorkflowHandler(workflowService, logger)
+	r.Route("/workflows", func(r chi.Router) {
+		r.Use(appMiddleware.RequireAuth(jwtManager))
+		r.Post("/", workflowHandler.Create)
+		r.Get("/", workflowHandler.List)
+		r.Get("/{id}", workflowHandler.Get)
+		r.Post("/{id}/run", workflowHandler.Run)
 	})
 	return r
 }

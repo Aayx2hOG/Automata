@@ -14,6 +14,7 @@ import (
 	"github.com/Aayx2hOG/automata/internal/repositories"
 	"github.com/Aayx2hOG/automata/internal/services"
 	"github.com/Aayx2hOG/automata/internal/telemetry"
+	"github.com/Aayx2hOG/automata/internal/workflow"
 	"github.com/joho/godotenv"
 	"go.uber.org/zap"
 )
@@ -50,7 +51,14 @@ func main() {
 	jwtManager := auth.NewJWTManager(cfg.Auth.JWTSecret, cfg.Auth.AccessTokenTTL)
 	authService := services.NewAuthService(userRepo, refreshTokenRepo, jwtManager, cfg.Auth.RefreshTokenTTL)
 
-	srv := api.NewServer(cfg.HTTP.Port, cfg.HTTP.ShutdownTimeout, pool, logger, cfg.HTTP.AllowedOriginsList(), authService, userRepo, jwtManager)
+	workflowRepo := repositories.NewWorkflowRepository(pool)
+	workflowVersionRepo := repositories.NewWorkflowVersionRepository(pool)
+	workflowRunRepo := repositories.NewWorkflowRunRepository(pool)
+	nodeRegistry := workflow.NewRegistry(logger)
+	engine := workflow.NewEngine(nodeRegistry)
+	workflowService := services.NewWorkflowService(workflowRepo, workflowVersionRepo, workflowRunRepo, engine)
+
+	srv := api.NewServer(cfg.HTTP.Port, cfg.HTTP.ShutdownTimeout, pool, logger, cfg.HTTP.AllowedOriginsList(), authService, workflowService, userRepo, jwtManager)
 
 	go func() {
 		if err := srv.StartServer(); err != nil {
