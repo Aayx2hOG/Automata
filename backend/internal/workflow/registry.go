@@ -4,7 +4,9 @@ import (
 	"fmt"
 
 	"github.com/Aayx2hOG/automata/internal/node"
+	"github.com/Aayx2hOG/automata/internal/nodes/condition"
 	"github.com/Aayx2hOG/automata/internal/nodes/delay"
+	httprequest "github.com/Aayx2hOG/automata/internal/nodes/http_request"
 	"github.com/Aayx2hOG/automata/internal/nodes/logger"
 	"github.com/Aayx2hOG/automata/internal/nodes/manual"
 	"go.uber.org/zap"
@@ -22,6 +24,8 @@ func NewRegistry(appLogger *zap.Logger) *Registry {
 	r.constructors["manual_trigger"] = func() node.Node { return manual.New() }
 	r.constructors["logger"] = func() node.Node { return logger.New(appLogger) }
 	r.constructors["delay"] = func() node.Node { return delay.New() }
+	r.constructors["condition"] = func() node.Node { return condition.New() }
+	r.constructors["http_request"] = func() node.Node { return httprequest.New() }
 
 	return r
 }

@@ -13,6 +13,7 @@ import (
 	"github.com/Aayx2hOG/automata/internal/repositories"
 	"github.com/Aayx2hOG/automata/internal/services"
 	"github.com/Aayx2hOG/automata/internal/telemetry"
+	"github.com/Aayx2hOG/automata/internal/workflow"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 )
@@ -53,7 +54,14 @@ func setupTestEnv(t *testing.T) *testEnv {
 	jwtManager := auth.NewJWTManager(jwtSecret, 15*time.Minute)
 	authService := services.NewAuthService(userRepo, refreshTokenRepo, jwtManager, 168*time.Hour)
 
-	router := api.NewRouter(pool, logger, []string{"http://localhost:3000"}, authService, userRepo, jwtManager)
+	workflowRepo := repositories.NewWorkflowRepository(pool)
+	workflowVersionRepo := repositories.NewWorkflowVersionRepository(pool)
+	workflowRunRepo := repositories.NewWorkflowRunRepository(pool)
+	registry := workflow.NewRegistry(logger)
+	engine := workflow.NewEngine(registry)
+	workflowService := services.NewWorkflowService(workflowRepo, workflowVersionRepo, workflowRunRepo, engine)
+
+	router := api.NewRouter(pool, logger, []string{"http://localhost:3000"}, authService, workflowService, userRepo, jwtManager)
 
 	t.Cleanup(func() {
 		pool.Close()

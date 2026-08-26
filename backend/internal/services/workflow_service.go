@@ -125,3 +125,14 @@ func flattenOutputs(outputs map[string]map[string]any) map[string]any {
 	}
 	return flattened
 }
+
+func (s *WorkflowService) GetRun(ctx context.Context, runID, requesterID uuid.UUID) (*models.WorkflowRun, error) {
+	run, err := s.runs.GetByID(ctx, runID)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := s.GetWorkflow(ctx, runID, requesterID); err != nil {
+		return nil, err
+	}
+	return run, err
+}

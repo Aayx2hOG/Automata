@@ -24,12 +24,9 @@ func NewEngine(registry *Registry) *Engine {
 func (e *Engine) Run(ctx *node.ExecutionContext, graph models.WorkflowGraph) *ExecutionResult {
 	validation := ValidatorGraph(graph)
 	if !validation.Valid {
-		return &ExecutionResult{Error: fmt.Errorf("invalid workflow graph: %v", validation.Errors)}
-	}
-
-	order, err := topologicalOrder(graph)
-	if err != nil {
-		return &ExecutionResult{Error: err}
+		return &ExecutionResult{
+			Error: fmt.Errorf("invalid workflow graph: %v", validation.Errors),
+		}
 	}
 
 	nodesByID := make(map[string]models.GraphNode, len(graph.Nodes))
@@ -37,15 +34,47 @@ func (e *Engine) Run(ctx *node.ExecutionContext, graph models.WorkflowGraph) *Ex
 		nodesByID[n.ID] = n
 	}
 
+	outgoing := make(map[string][]models.GraphEdge)
+	hasIncoming := make(map[string]bool, len(graph.Nodes))
+	for _, edge := range graph.Edges {
+		outgoing[edge.FromNodeID] = append(outgoing[edge.FromNodeID], edge)
+		hasIncoming[edge.ToNodeID] = true
+	}
+
+	roots := []string{}
+	for _, n := range graph.Nodes {
+		if !hasIncoming[n.ID] {
+			roots = append(roots, n.ID)
+		}
+	}
+
 	outputs := make(map[string]map[string]any)
-	for _, nodeID := range order {
-		graphNode := nodesByID[nodeID]
+	visited := make(map[string]bool, len(graph.Nodes))
+	queue := append([]string{}, roots...)
+
+	for len(queue) > 0 {
+		nodeID := queue[0]
+		queue = queue[1:]
+
+		if visited[nodeID] {
+			continue
+		}
+		visited[nodeID] = true
+
+		graphNode, ok := nodesByID[nodeID]
+		if !ok {
+			return &ExecutionResult{
+				Outputs:      outputs,
+				Error:        fmt.Errorf("node %q referenced but not defined in graph", nodeID),
+				FailedNodeID: nodeID,
+			}
+		}
 
 		impl, err := e.registry.Build(graphNode.Type)
 		if err != nil {
 			return &ExecutionResult{
 				Outputs:      outputs,
-				Error:        fmt.Errorf("node %q: %w", nodeID, err),
+				Error:        fmt.Errorf("node %q: %w", err),
 				FailedNodeID: nodeID,
 			}
 		}
@@ -66,6 +95,24 @@ func (e *Engine) Run(ctx *node.ExecutionContext, graph models.WorkflowGraph) *Ex
 			}
 		}
 		outputs[nodeID] = result
+
+		for _, edge := range outgoing[nodeID] {
+			if edgeIsActive(edge, result) && !visited[edge.ToNodeID] {
+				queue = append(queue, edge.ToNodeID)
+			}
+		}
 	}
 	return &ExecutionResult{Outputs: outputs}
+}
+
+func edgeIsActive(edge models.GraphEdge, sourceOutput map[string]any) bool {
+	if edge.Condition == "" {
+		return true
+	}
+	result, ok := sourceOutput["result"]
+	if !ok {
+		return false
+	}
+
+	return fmt.Sprintf("%v", result) == edge.Condition
 }
