@@ -136,3 +136,50 @@ func (s *WorkflowService) GetRun(ctx context.Context, runID, requesterID uuid.UU
 	}
 	return run, err
 }
+
+func (s *WorkflowService) TriggerWebhook(ctx context.Context, workflowID uuid.UUID, payload map[string]any) (*models.WorkflowRun, error) {
+	wf, err := s.workflows.GetById(ctx, workflowID)
+	if err != nil {
+		return nil, err
+	}
+	if !wf.IsActive {
+		return nil, models.ErrorWorkflowInactive
+	}
+
+	version, err := s.versions.GetLatestByWorkflow(ctx, wf.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	run, err := s.runs.Create(ctx, wf.ID, version.ID, models.TriggerWebhook)
+	if err != nil {
+		return nil, err
+	}
+
+	execCtx := &node.ExecutionContext{Ctx: ctx}
+	result := s.engine.RunWithSeededOutput(execCtx, version.Graph, "webhook_trigger", payload)
+
+	outputs := flattenOutputs(result.Outputs)
+	finishedAt := time.Now()
+
+	status := models.RunStatusSucceeded
+	var errMsg *string
+	if result.Error != nil {
+		status = models.RunStatusFailed
+		msg := result.Error.Error()
+		errMsg = &msg
+	}
+
+	if err := s.runs.UpdateResult(ctx, run.ID, status, outputs, errMsg, finishedAt); err != nil {
+		return nil, err
+	}
+
+	run.Status = status
+	run.Outputs = outputs
+	run.FinishedAt = &finishedAt
+	if errMsg != nil {
+		run.ErrorMessage = *errMsg
+	}
+
+	return run, nil
+}

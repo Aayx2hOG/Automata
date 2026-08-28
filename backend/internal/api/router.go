@@ -27,7 +27,6 @@ func NewRouter(
 ) http.Handler {
 	r := chi.NewRouter()
 
-	r.Use(middleware.RealIP)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.RequestID)
 	r.Use(appMiddleware.RequestLogger(logger))
@@ -70,6 +69,14 @@ func NewRouter(
 	r.Route("/runs", func(r chi.Router) {
 		r.Use(appMiddleware.RequireAuth(jwtManager))
 		r.Get("/{id}", runHandler.Get)
+	})
+
+	webhookHandler := handlers.NewWebhookHandler(workflowService, logger)
+	webhookLimiter := appMiddleware.NewRateLimiter(5, 20)
+	r.Route("/webhook", func(r chi.Router) {
+
+		r.Use(webhookLimiter.Middleware)
+		r.Post("/{workflowID}", webhookHandler.Trigger)
 	})
 
 	return r

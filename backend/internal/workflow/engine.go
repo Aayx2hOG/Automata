@@ -17,11 +17,25 @@ type Engine struct {
 	registry *Registry
 }
 
+type seed struct {
+	nodeType string
+	data     map[string]any
+}
+
 func NewEngine(registry *Registry) *Engine {
 	return &Engine{registry: registry}
 }
 
 func (e *Engine) Run(ctx *node.ExecutionContext, graph models.WorkflowGraph) *ExecutionResult {
+	return e.run(ctx, graph, nil)
+}
+
+func (e *Engine) RunWithSeededOutput(ctx *node.ExecutionContext, graph models.WorkflowGraph, seedNodeType string, seedData map[string]any) *ExecutionResult {
+	return e.run(ctx, graph, &seed{nodeType: seedNodeType, data: seedData})
+
+}
+
+func (e *Engine) run(ctx *node.ExecutionContext, graph models.WorkflowGraph, s *seed) *ExecutionResult {
 	validation := ValidatorGraph(graph)
 	if !validation.Valid {
 		return &ExecutionResult{
