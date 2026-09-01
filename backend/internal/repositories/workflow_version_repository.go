@@ -65,6 +65,10 @@ func (r *pgWorkflowVersionRepository) Create(ctx context.Context, workflowID uui
 	).Scan(&version.ID, &version.CreatedAt)
 
 	if err != nil {
+		return nil, fmt.Errorf("insert workflow version: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
 		return nil, fmt.Errorf("commit transaction: %w", err)
 	}
 
@@ -86,7 +90,7 @@ func (r *pgWorkflowVersionRepository) GetLatestByWorkflow(ctx context.Context, w
 		&version.ID, &version.WorkflowID, &version.Version, &graphByte, &version.CreatedAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, models.ErrWorkflowNotFound
+		return nil, models.ErrWorkflowVersionNotFound
 	}
 	if err != nil {
 		return nil, fmt.Errorf("query latest workflow version: %w", err)

@@ -134,6 +134,8 @@ func (h *WorkflowHandler) Run(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case errors.Is(err, models.ErrWorkflowNotFound):
 			respondError(w, h.logger, http.StatusNotFound, "workflow not found")
+		case errors.Is(err, models.ErrWorkflowVersionNotFound):
+			respondError(w, h.logger, http.StatusNotFound, "workflow has no versions")
 		case errors.Is(err, models.ErrorWorkflowInactive):
 			respondError(w, h.logger, http.StatusConflict, "workflow is inactive")
 		default:

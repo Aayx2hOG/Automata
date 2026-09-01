@@ -88,7 +88,7 @@ func (e *Engine) run(ctx *node.ExecutionContext, graph models.WorkflowGraph, s *
 		if err != nil {
 			return &ExecutionResult{
 				Outputs:      outputs,
-				Error:        fmt.Errorf("node %q: %w", err),
+				Error:        fmt.Errorf("node %q: %w", nodeID, err),
 				FailedNodeID: nodeID,
 			}
 		}

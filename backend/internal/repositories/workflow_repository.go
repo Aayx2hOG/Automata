@@ -47,7 +47,7 @@ SELECT id, owner_id, name, description, is_active, created_at, updated_at
 	w := models.Workflow{}
 	var description *string
 
-	err := r.pool.QueryRow(ctx, query, id).Scan(&w.ID, &w.OwnerID, &w.Name, &w.Description, &w.IsActive, &w.CreatedAt, &w.UpdatedAt)
+	err := r.pool.QueryRow(ctx, query, id).Scan(&w.ID, &w.OwnerID, &w.Name, &description, &w.IsActive, &w.CreatedAt, &w.UpdatedAt)
 
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, models.ErrWorkflowNotFound
@@ -82,7 +82,7 @@ func (r *pgWorkflowRepository) ListByOwner(ctx context.Context, ownerID uuid.UUI
 	for rows.Next() {
 		w := models.Workflow{}
 		var description *string
-		if err := rows.Scan(&w.ID, &w.OwnerID, &w.Name, &w.Description, &w.IsActive, &w.CreatedAt, &w.UpdatedAt); err != nil {
+		if err := rows.Scan(&w.ID, &w.OwnerID, &w.Name, &description, &w.IsActive, &w.CreatedAt, &w.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("scan workflow row: %w", err)
 		}
 		if description != nil {

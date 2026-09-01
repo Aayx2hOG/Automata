@@ -11,9 +11,11 @@ import (
 	"github.com/Aayx2hOG/automata/internal/auth"
 	"github.com/Aayx2hOG/automata/internal/config"
 	"github.com/Aayx2hOG/automata/internal/database"
+	"github.com/Aayx2hOG/automata/internal/queue"
 	"github.com/Aayx2hOG/automata/internal/repositories"
 	"github.com/Aayx2hOG/automata/internal/services"
 	"github.com/Aayx2hOG/automata/internal/telemetry"
+	"github.com/Aayx2hOG/automata/internal/worker"
 	"github.com/Aayx2hOG/automata/internal/workflow"
 	"github.com/joho/godotenv"
 	"go.uber.org/zap"
@@ -56,7 +58,13 @@ func main() {
 	workflowRunRepo := repositories.NewWorkflowRunRepository(pool)
 	nodeRegistry := workflow.NewRegistry(logger)
 	engine := workflow.NewEngine(nodeRegistry)
-	workflowService := services.NewWorkflowService(workflowRepo, workflowVersionRepo, workflowRunRepo, engine)
+	jobQueue := queue.NewQueue(100)
+	workflowService := services.NewWorkflowService(workflowRepo, workflowVersionRepo, workflowRunRepo, engine, jobQueue, logger)
+
+	workerCtx, cancelWorkers := context.WithCancel(context.Background())
+	pool5 := worker.NewPool(jobQueue, workflowService.ExecuteJob, 5, logger)
+	pool5.Start(workerCtx)
+	logger.Info("worker pool started", zap.Int("size", 5))
 
 	srv := api.NewServer(cfg.HTTP.Port, cfg.HTTP.ShutdownTimeout, pool, logger, cfg.HTTP.AllowedOriginsList(), authService, workflowService, userRepo, jwtManager)
 
@@ -74,7 +82,13 @@ func main() {
 	defer cancel()
 
 	if err := srv.ShutdownServer(shutdownCtx); err != nil {
-		logger.Fatal("forced shutdown failed", zap.Error(err))
+		logger.Error("forced HTTP shutdown", zap.Error(err))
 	}
+
+	cancelWorkers()
+	if err := pool5.Shutdown(shutdownCtx); err != nil {
+		logger.Error("workers did not drain in time", zap.Error(err))
+	}
+
 	logger.Info("server exited cleanly")
 }

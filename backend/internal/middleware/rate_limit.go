@@ -1,7 +1,6 @@
 package middleware
 
 import (
-	"fmt"
 	"net"
 	"net/http"
 	"os"
@@ -41,7 +40,7 @@ func NewRateLimiter(rps float64, burst int) *RateLimiter {
 		burst:    burst,
 		stop:     make(chan struct{}),
 	}
-	if os.Getenv("TEST_DISABLE_RATE_LIMIT") == "1" || runningUnderTest() {
+	if os.Getenv("TEST_DISABLE_RATE_LIMIT") == "1" {
 		rl.rps = 0
 	}
 	go rl.cleanupLoop()
@@ -114,17 +113,7 @@ func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		limiter := rl.getLimiter(clientIP(r))
 		if limiter != nil {
-			rsv := limiter.Reserve()
-			if !rsv.OK() {
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusTooManyRequests)
-				w.Write([]byte(`{"error":"too many requests, please try again later"}`))
-				return
-			}
-			delay := rsv.Delay()
-			if delay > 0 {
-				rsv.Cancel()
-				w.Header().Set("Retry-After", fmt.Sprintf("%.0f", delay.Seconds()))
+			if !limiter.Allow() {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusTooManyRequests)
 				w.Write([]byte(`{"error":"too many requests, please try again later"}`))
