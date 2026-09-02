@@ -10,6 +10,8 @@ type Job struct {
 	Graph        models.WorkflowGraph
 	SeedNodeType string
 	SeedData     map[string]any
+	Attempt      int
+	MaxRetries   int
 }
 
 type Queue struct {

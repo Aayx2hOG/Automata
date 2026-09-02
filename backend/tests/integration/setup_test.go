@@ -10,6 +10,7 @@ import (
 	"github.com/Aayx2hOG/automata/internal/api"
 	"github.com/Aayx2hOG/automata/internal/auth"
 	"github.com/Aayx2hOG/automata/internal/database"
+	"github.com/Aayx2hOG/automata/internal/queue"
 	"github.com/Aayx2hOG/automata/internal/repositories"
 	"github.com/Aayx2hOG/automata/internal/services"
 	"github.com/Aayx2hOG/automata/internal/telemetry"
@@ -59,7 +60,8 @@ func setupTestEnv(t *testing.T) *testEnv {
 	workflowRunRepo := repositories.NewWorkflowRunRepository(pool)
 	registry := workflow.NewRegistry(logger)
 	engine := workflow.NewEngine(registry)
-	workflowService := services.NewWorkflowService(workflowRepo, workflowVersionRepo, workflowRunRepo, engine)
+	jobQueue := queue.NewQueue(100)
+	workflowService := services.NewWorkflowService(workflowRepo, workflowVersionRepo, workflowRunRepo, engine, jobQueue, logger)
 
 	router := api.NewRouter(pool, logger, []string{"http://localhost:3000"}, authService, workflowService, userRepo, jwtManager)
 

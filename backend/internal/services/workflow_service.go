@@ -14,6 +14,11 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	defaultMaxRetries       = 2
+	defaultExecutionTimeout = 60 * time.Second
+)
+
 type WorkflowService struct {
 	workflows repositories.WorkflowRepository
 	versions  repositories.WorkflowVersionRepository
@@ -105,7 +110,8 @@ func (s *WorkflowService) RunWorkflow(ctx context.Context, id, requesterID uuid.
 		return nil, err
 	}
 
-	if !s.queue.Enqueue(queue.Job{RunID: run.ID, Graph: version.Graph}) {
+	job := queue.Job{RunID: run.ID, Graph: version.Graph, Attempt: 0, MaxRetries: defaultMaxRetries}
+	if !s.queue.Enqueue(job) {
 		return s.failEnqueue(ctx, run)
 	}
 
@@ -153,15 +159,50 @@ func (s *WorkflowService) ExecuteJob(ctx context.Context, job queue.Job) {
 		s.logger.Error("failed to mark run running", zap.Error(err), zap.String("run_id", job.RunID.String()))
 	}
 
-	execCtx := &node.ExecutionContext{Ctx: ctx}
+	execCtx, cancel := context.WithTimeout(ctx, defaultExecutionTimeout)
+	defer cancel()
+
+	nodeCtx := &node.ExecutionContext{Ctx: execCtx}
 
 	var result *workflow.ExecutionResult
 	if job.SeedNodeType != "" {
-		result = s.engine.RunWithSeededOutput(execCtx, job.Graph, job.SeedNodeType, job.SeedData)
+		result = s.engine.RunWithSeededOutput(nodeCtx, job.Graph, job.SeedNodeType, job.SeedData)
 	} else {
-		result = s.engine.Run(execCtx, job.Graph)
+		result = s.engine.Run(nodeCtx, job.Graph)
 	}
 
+	if result.Error != nil && job.Attempt < job.MaxRetries {
+		s.retryJob(ctx, job, result.Error)
+		return
+	}
+	s.finalizeRun(ctx, job.RunID, result)
+}
+
+func (s *WorkflowService) retryJob(ctx context.Context, job queue.Job, cause error) {
+	nextAttempt := job.Attempt + 1
+	backoff := time.Duration(nextAttempt) * 2 * time.Second
+
+	s.logger.Warn("run failed, scheduling retry",
+		zap.String("run_id", job.RunID.String()),
+		zap.Int("attempt", nextAttempt),
+		zap.Int("max_retries", job.MaxRetries),
+		zap.Duration("backoff", backoff),
+		zap.Error(cause),
+	)
+
+	retryJob := job
+	retryJob.Attempt = nextAttempt
+
+	go func() {
+		time.Sleep(backoff)
+		if !s.queue.Enqueue(retryJob) {
+			msg := "job queue full during retry"
+			_ = s.runs.UpdateResult(context.Background(), retryJob.RunID, models.RunStatusFailed, nil, &msg, time.Now())
+		}
+	}()
+}
+
+func (s *WorkflowService) finalizeRun(ctx context.Context, runID uuid.UUID, result *workflow.ExecutionResult) {
 	outputs := flattenOutputs(result.Outputs)
 	finishedAt := time.Now()
 
@@ -173,8 +214,8 @@ func (s *WorkflowService) ExecuteJob(ctx context.Context, job queue.Job) {
 		errMsg = &msg
 	}
 
-	if err := s.runs.UpdateResult(ctx, job.RunID, status, outputs, errMsg, finishedAt); err != nil {
-		s.logger.Error("failed to record run result", zap.Error(err), zap.String("run_id", job.RunID.String()))
+	if err := s.runs.UpdateResult(ctx, runID, status, outputs, errMsg, finishedAt); err != nil {
+		s.logger.Error("failed to record run result", zap.Error(err), zap.String("run_id", runID.String()))
 	}
 }
 
