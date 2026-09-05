@@ -8,6 +8,7 @@ import (
 
 	appAuth "github.com/Aayx2hOG/automata/internal/auth"
 	"github.com/Aayx2hOG/automata/internal/repositories"
+	"github.com/Aayx2hOG/automata/internal/scheduler"
 	"github.com/Aayx2hOG/automata/internal/services"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
@@ -18,11 +19,11 @@ type Server struct {
 	logger     *zap.Logger
 }
 
-func NewServer(port int, shutdownTimeout time.Duration, pool *pgxpool.Pool, logger *zap.Logger, allowedOrigins []string, authService *services.AuthService, workflowService *services.WorkflowService, userRepo repositories.UserRepository, jwtManager *appAuth.JWTManager) *Server {
+func NewServer(port int, shutdownTimeout time.Duration, pool *pgxpool.Pool, logger *zap.Logger, allowedOrigins []string, authService *services.AuthService, workflowService *services.WorkflowService, scheduleRepo repositories.ScheduleRepository, sched *scheduler.Scheduler, userRepo repositories.UserRepository, jwtManager *appAuth.JWTManager) *Server {
 	return &Server{
 		httpServer: &http.Server{
 			Addr:         fmt.Sprintf(":%d", port),
-			Handler:      NewRouter(pool, logger, allowedOrigins, authService, workflowService, userRepo, jwtManager),
+			Handler:      NewRouter(pool, logger, allowedOrigins, authService, workflowService, scheduleRepo, sched, userRepo, jwtManager),
 			ReadTimeout:  10 * time.Second,
 			WriteTimeout: 10 * time.Second,
 		},

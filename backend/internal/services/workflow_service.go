@@ -226,3 +226,42 @@ func flattenOutputs(outputs map[string]map[string]interface{}) map[string]interf
 	}
 	return flattened
 }
+
+func (s *WorkflowService) RunScheduled(ctx context.Context, workflowID uuid.UUID) (*models.WorkflowRun, error) {
+	wf, err := s.workflows.GetById(ctx, workflowID)
+	if err != nil {
+		return nil, err
+	}
+	if !wf.IsActive {
+		return nil, models.ErrorWorkflowInactive
+	}
+
+	version, err := s.versions.GetLatestByWorkflow(ctx, wf.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	run, err := s.runs.Create(ctx, wf.ID, version.ID, models.TriggerCron)
+	if err != nil {
+		return nil, err
+	}
+
+	job := queue.Job{
+		RunID:      run.ID,
+		Graph:      version.Graph,
+		Attempt:    0,
+		MaxRetries: defaultMaxRetries,
+	}
+	if !s.queue.Enqueue(job) {
+		return s.failEnqueue(ctx, run)
+	}
+
+	return run, nil
+}
+
+func (s *WorkflowService) CreateSchedule(ctx context.Context, ownerID, workflowID uuid.UUID, cronExpr string) (*models.Schedule, error) {
+	if _, err := s.GetWorkflow(ctx, workflowID, ownerID); err != nil {
+		return nil, err
+	}
+	return nil, nil // placeholder replaced by scheduler.go
+}

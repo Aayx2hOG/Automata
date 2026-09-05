@@ -72,3 +72,13 @@ type WorkflowRun struct {
 	FinishedAt        *time.Time     `json:"finished_at,omitempty"`
 	CreatedAt         time.Time      `json:"created_at"`
 }
+
+type Schedule struct {
+	ID             uuid.UUID  `json:"id"`
+	WorkflowID     uuid.UUID  `json:"workflow_id"`
+	CronExpression string     `json:"cron_expression"`
+	IsActive       bool       `json:"is_active"`
+	NextRunAt      time.Time  `json:"next_run_at"`
+	LastRunAt      *time.Time `json:"last_run_at"`
+	CreatedAt      time.Time  `json:"created_at"`
+}

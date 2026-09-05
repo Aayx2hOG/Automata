@@ -13,6 +13,7 @@ import (
 	"github.com/Aayx2hOG/automata/internal/database"
 	"github.com/Aayx2hOG/automata/internal/queue"
 	"github.com/Aayx2hOG/automata/internal/repositories"
+	"github.com/Aayx2hOG/automata/internal/scheduler"
 	"github.com/Aayx2hOG/automata/internal/services"
 	"github.com/Aayx2hOG/automata/internal/telemetry"
 	"github.com/Aayx2hOG/automata/internal/worker"
@@ -66,7 +67,11 @@ func main() {
 	pool5.Start(workerCtx)
 	logger.Info("worker pool started", zap.Int("size", 5))
 
-	srv := api.NewServer(cfg.HTTP.Port, cfg.HTTP.ShutdownTimeout, pool, logger, cfg.HTTP.AllowedOriginsList(), authService, workflowService, userRepo, jwtManager)
+	scheduleRepo := repositories.NewScheduleRepository(pool)
+	sched := scheduler.New(scheduleRepo, workflowService, logger)
+	go sched.Run(workerCtx)
+
+	srv := api.NewServer(cfg.HTTP.Port, cfg.HTTP.ShutdownTimeout, pool, logger, cfg.HTTP.AllowedOriginsList(), authService, workflowService, scheduleRepo, sched, userRepo, jwtManager)
 
 	go func() {
 		if err := srv.StartServer(); err != nil {

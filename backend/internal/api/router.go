@@ -8,6 +8,7 @@ import (
 	appAuth "github.com/Aayx2hOG/automata/internal/auth"
 	appMiddleware "github.com/Aayx2hOG/automata/internal/middleware"
 	"github.com/Aayx2hOG/automata/internal/repositories"
+	"github.com/Aayx2hOG/automata/internal/scheduler"
 	"github.com/Aayx2hOG/automata/internal/services"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -22,6 +23,8 @@ func NewRouter(
 	allowedOrigins []string,
 	authService *services.AuthService,
 	workflowService *services.WorkflowService,
+	scheduleRepo repositories.ScheduleRepository,
+	sched *scheduler.Scheduler,
 	userRepo repositories.UserRepository,
 	jwtManager *appAuth.JWTManager,
 ) http.Handler {
@@ -69,6 +72,17 @@ func NewRouter(
 	r.Route("/runs", func(r chi.Router) {
 		r.Use(appMiddleware.RequireAuth(jwtManager))
 		r.Get("/{id}", runHandler.Get)
+	})
+
+	scheduleHandler := handlers.NewScheduleHandler(workflowService, scheduleRepo, sched, logger)
+	r.Route("/workflows/{id}/schedules", func(r chi.Router) {
+		r.Use(appMiddleware.RequireAuth(jwtManager))
+		r.Post("/", scheduleHandler.Create)
+		r.Get("/", scheduleHandler.List)
+	})
+	r.Route("/schedules", func(r chi.Router) {
+		r.Use(appMiddleware.RequireAuth(jwtManager))
+		r.Delete("/{scheduleID}", scheduleHandler.Deactivate)
 	})
 
 	webhookHandler := handlers.NewWebhookHandler(workflowService, logger)
