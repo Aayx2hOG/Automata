@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/joho/godotenv"
 	"github.com/spf13/viper"
 )
 
@@ -27,7 +28,8 @@ type DatabaseConfig struct {
 }
 
 type AuthConfig struct {
-	JWTSecret       string        `mapstructure:"jwt_secret"`
+	JWTSecret          string        `mapstructure:"jwt_secret"`
+	CredentialsKey     string        `mapstructure:"credentials_key"`
 	AccessTokenTTL  time.Duration `mapstructure:"access_token_ttl"`
 	RefreshTokenTTL time.Duration `mapstructure:"refresh_token_ttl"`
 }
@@ -44,6 +46,9 @@ func (c HTTPConfig) AllowedOriginsList() []string {
 }
 
 func Load() (*Config, error) {
+	// Load .env file from current directory or parent directory
+	_ = godotenv.Overload(".env", "../.env")
+
 	v := viper.New()
 	v.SetConfigName("config")
 	v.SetConfigType("json")
@@ -69,6 +74,9 @@ func Load() (*Config, error) {
 	if err := v.BindEnv("auth.jwt_secret", "JWT_SECRET"); err != nil {
 		return nil, fmt.Errorf("bind JWT_SECRET: %w", err)
 	}
+	if err := v.BindEnv("auth.credentials_key", "CREDENTIALS_ENCRYPTION_KEY"); err != nil {
+		return nil, fmt.Errorf("bind CREDENTIALS_ENCRYPTION_KEY: %w", err)
+	}
 	if err := v.BindEnv("env", "ENV"); err != nil {
 		return nil, fmt.Errorf("bind ENV: %w", err)
 	}
@@ -83,6 +91,9 @@ func Load() (*Config, error) {
 	}
 	if len(cfg.Auth.JWTSecret) < 32 {
 		return nil, fmt.Errorf("JWT_SECRET must be at least 32 characters")
+	}
+	if len(cfg.Auth.CredentialsKey) != 32 {
+		return nil, fmt.Errorf("CREDENTIALS_ENCRYPTION_KEY must be exactly 32 bytes (AES-256)")
 	}
 
 	return &cfg, nil

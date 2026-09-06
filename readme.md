@@ -11,31 +11,33 @@ This project is under active development. Current progress by phase:
 | Phase | Scope | Status |
 |---|---|---|
 | 1 | Foundation: config, database, authentication, CI | Complete |
-| 2 | Workflow engine: graph model, validation, execution | In progress |
-| 3 | Core nodes (HTTP, Delay, Logger, Condition, etc.) | Not started |
-| 4 | Worker system: job queue, concurrency, retries | Not started |
-| 5 | Scheduler: cron, delayed jobs | Not started |
-| 6 | Frontend: visual workflow editor | Not started |
+| 2 | Workflow engine: graph model, validation, execution | Complete |
+| 3 | Core nodes (HTTP, Delay, Logger, Condition, Webhook, JSON Parser, Manual) | Complete |
+| 4 | Worker system: job queue, worker pool, concurrency, retries | Complete |
+| 5 | Scheduler & Triggers: cron scheduler, webhook triggers | Complete |
+| 6 | Frontend: visual workflow editor | Complete |
 | 7 | Integrations: GitHub, Discord, Slack, SMTP | Not started |
-| 8 | Production readiness: metrics, tracing, secrets | Not started |
+| 8 | Production readiness: metrics, tracing, secrets | In progress |
 
 ## Tech stack
 
 **Backend**
 - Go 1.24+
 - Chi (HTTP router)
-- PostgreSQL via pgx
+- PostgreSQL via pgx / pgxpool
 - JWT authentication with Argon2id password hashing
 - Zap (structured logging)
-- Viper (configuration)
+- Robfig Cron (cron expression parsing)
+- Go-playground Validator (request validation)
 
-**Frontend** (planned)
-- Next.js, TypeScript, React
-- React Flow for the visual workflow editor
-- TailwindCSS, TanStack Query, Zustand
+**Frontend**
+- Bun runtime & package manager
+- React 19 + Vite + TypeScript
+- `@xyflow/react` (React Flow v12) visual node DAG editor
+- Tailwind CSS v4, Lucide Icons, Glassmorphism design system
 
 **Infrastructure**
-- Docker
+- Docker & Docker Compose
 - GitHub Actions (CI)
 
 ## Architecture
@@ -48,7 +50,7 @@ type Node interface {
 }
 ```
 
-New node types are added by implementing this interface and registering them — the execution engine itself never needs to change. Graphs are validated for cycles and dangling references before execution, and every run is persisted with its status, outputs, and timing.
+New node types are added by implementing this interface and registering them in the registry — the execution engine itself never needs to change. Graphs are validated for cycles and dangling references before execution, and every run is persisted with its status, outputs, and timing.
 
 ## Getting started
 
@@ -124,6 +126,30 @@ curl http://localhost:8080/healthz
 | Method | Path | Description |
 |---|---|---|
 | GET | `/users/me` | Return the authenticated user (requires a Bearer token) |
+
+### Workflows & Execution
+
+| Method | Path | Description |
+|---|---|---|
+| POST | `/workflows` | Create a new workflow |
+| GET | `/workflows` | List workflows owned by the authenticated user |
+| GET | `/workflows/{id}` | Get workflow details and active version |
+| POST | `/workflows/{id}/run` | Manually trigger a workflow run |
+| GET | `/runs/{id}` | Get workflow execution status and logs |
+
+### Schedules (Cron Triggers)
+
+| Method | Path | Description |
+|---|---|---|
+| POST | `/workflows/{id}/schedules` | Create a new cron schedule for a workflow |
+| GET | `/workflows/{id}/schedules` | List active/inactive schedules for a workflow |
+| DELETE | `/schedules/{scheduleID}` | Deactivate a schedule |
+
+### Webhook Triggers
+
+| Method | Path | Description |
+|---|---|---|
+| POST | `/webhook/{workflowID}` | Trigger a workflow via external HTTP webhook payload |
 
 ### Health
 
