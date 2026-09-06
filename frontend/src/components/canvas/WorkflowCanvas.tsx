@@ -25,7 +25,6 @@ import {
   Code2,
   Save,
   PlayCircle,
-  AlertTriangle,
   Sparkles,
   ArrowLeft,
   CheckCircle2,
@@ -47,14 +46,14 @@ interface WorkflowCanvasProps {
 }
 
 const PALETTE_ITEMS = [
-  { type: 'webhook', title: 'Webhook', category: 'Trigger', icon: Webhook, color: 'text-purple-400 border-purple-500/30 bg-purple-950/30' },
-  { type: 'cron', title: 'Cron Schedule', category: 'Trigger', icon: Clock, color: 'text-amber-400 border-amber-500/30 bg-amber-950/30' },
-  { type: 'manual', title: 'Manual Trigger', category: 'Trigger', icon: Play, color: 'text-emerald-400 border-emerald-500/30 bg-emerald-950/30' },
-  { type: 'http_request', title: 'HTTP Request', category: 'Action', icon: Globe, color: 'text-blue-400 border-blue-500/30 bg-blue-950/30' },
-  { type: 'delay', title: 'Delay Pause', category: 'Action', icon: Timer, color: 'text-pink-400 border-pink-500/30 bg-pink-950/30' },
-  { type: 'logger', title: 'Logger', category: 'Action', icon: Terminal, color: 'text-cyan-400 border-cyan-500/30 bg-cyan-950/30' },
-  { type: 'condition', title: 'Condition Logic', category: 'Logic', icon: GitFork, color: 'text-yellow-400 border-yellow-500/30 bg-yellow-950/30' },
-  { type: 'json_parser', title: 'JSON Parser', category: 'Transform', icon: Code2, color: 'text-teal-400 border-teal-500/30 bg-teal-950/30' },
+  { type: 'webhook', title: 'Webhook Trigger', category: 'Trigger', icon: Webhook, color: 'text-[#ff6d5a] border-[#ff6d5a]/40 bg-[#ff6d5a]/10' },
+  { type: 'cron', title: 'Cron Schedule', category: 'Trigger', icon: Clock, color: 'text-[#ff6d5a] border-[#ff6d5a]/40 bg-[#ff6d5a]/10' },
+  { type: 'manual', title: 'Manual Trigger', category: 'Trigger', icon: Play, color: 'text-[#ff6d5a] border-[#ff6d5a]/40 bg-[#ff6d5a]/10' },
+  { type: 'http_request', title: 'HTTP Request', category: 'Action', icon: Globe, color: 'text-cyan-400 border-cyan-500/40 bg-cyan-950/40' },
+  { type: 'delay', title: 'Delay Pause', category: 'Action', icon: Timer, color: 'text-purple-400 border-purple-500/40 bg-purple-950/40' },
+  { type: 'logger', title: 'Logger', category: 'Action', icon: Terminal, color: 'text-blue-400 border-blue-500/40 bg-blue-950/40' },
+  { type: 'condition', title: 'Condition Logic', category: 'Logic', icon: GitFork, color: 'text-amber-400 border-amber-500/40 bg-amber-950/40' },
+  { type: 'json_parser', title: 'JSON Parser', category: 'Transform', icon: Code2, color: 'text-emerald-400 border-emerald-500/40 bg-emerald-950/40' },
 ];
 
 export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
@@ -73,7 +72,6 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
   const [selectedNode, setSelectedNode] = useState<{ id: string; type: string; data: CustomNodeData } | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Convert backend WorkflowGraph to React Flow nodes & edges
   const defaultNodes: Node[] = useMemo(() => {
     if (initialGraph?.nodes && initialGraph.nodes.length > 0) {
       return initialGraph.nodes.map((n, idx) => ({
@@ -87,7 +85,6 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
         },
       }));
     }
-    // Default starter canvas with Trigger & Action
     return [
       {
         id: 'webhook_1',
@@ -116,7 +113,7 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
         target: e.to_node_id,
         sourceHandle: e.condition || 'source',
         label: e.condition ? e.condition.toUpperCase() : undefined,
-        style: { stroke: e.condition === 'true' ? '#10b981' : e.condition === 'false' ? '#f43f5e' : '#6366f1' },
+        style: { stroke: e.condition === 'true' ? '#10b981' : e.condition === 'false' ? '#f43f5e' : '#ff6d5a' },
       }));
     }
     return [
@@ -124,7 +121,7 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
         id: 'e-webhook_1-http_request_1',
         source: 'webhook_1',
         target: 'http_request_1',
-        style: { stroke: '#6366f1' },
+        style: { stroke: '#ff6d5a' },
       },
     ];
   }, [initialGraph]);
@@ -143,7 +140,7 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
         id: `e-${params.source}-${params.target}-${handleId || 'source'}`,
         label: isCondition ? (handleId || 'true').toUpperCase() : undefined,
         style: {
-          stroke: handleId === 'true' ? '#10b981' : handleId === 'false' ? '#f43f5e' : '#6366f1',
+          stroke: handleId === 'true' ? '#10b981' : handleId === 'false' ? '#f43f5e' : '#ff6d5a',
           strokeWidth: 2,
         },
       } as Edge;
@@ -209,7 +206,6 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  // Build graph format for backend API
   const getGraphData = (): WorkflowGraph => {
     const graphNodes: GraphNode[] = nodes.map((n) => ({
       id: n.id,
@@ -244,14 +240,12 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
     setIsRunning(true);
     setRunResult(null);
     try {
-      // First save graph before executing
       const graph = getGraphData();
       await onSave(name, description, graph);
       const res = await onRun();
       setRunResult(res);
       showToast('Workflow execution triggered!');
 
-      // Highlight status on nodes if outputs available
       if (res && res.outputs) {
         setNodes((nds) =>
           nds.map((n) => ({
@@ -272,9 +266,9 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
   };
 
   return (
-    <div className="relative w-full h-screen bg-slate-950 flex flex-col overflow-hidden text-gray-100">
-      {/* Top Navbar Header */}
-      <header className="h-16 border-b border-white/10 bg-slate-900/90 backdrop-blur-xl px-5 flex items-center justify-between z-20">
+    <div className="relative w-full h-screen bg-[#0d1017] flex flex-col overflow-hidden text-gray-100 font-sans">
+      {/* n8n Style Canvas Header */}
+      <header className="h-16 border-b border-white/10 bg-[#10141d] backdrop-blur-xl px-5 flex items-center justify-between z-20">
         <div className="flex items-center space-x-4">
           <button
             onClick={onBack}
@@ -288,7 +282,7 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="bg-transparent font-semibold text-lg text-white focus:outline-none focus:border-b focus:border-indigo-500"
+              className="bg-transparent font-bold text-lg text-white focus:outline-none focus:border-b focus:border-[#ff6d5a]"
               placeholder="Workflow Name"
             />
             <input
@@ -306,33 +300,33 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
           <button
             onClick={handleSaveWorkflow}
             disabled={isSaving}
-            className="flex items-center space-x-2 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-medium text-white border border-white/10 transition-colors disabled:opacity-50"
+            className="flex items-center space-x-2 px-4 py-2 rounded-xl bg-[#161a23] hover:bg-[#1f2533] text-sm font-medium text-gray-200 border border-white/10 transition-colors disabled:opacity-50"
           >
-            <Save size={16} className="text-indigo-400" />
+            <Save size={16} className="text-[#ff6d5a]" />
             <span>{isSaving ? 'Saving...' : 'Save Graph'}</span>
           </button>
 
           <button
             onClick={handleRunWorkflow}
             disabled={isRunning}
-            className="flex items-center space-x-2 px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-sm font-semibold text-white shadow-lg shadow-indigo-600/30 transition-all hover:scale-105 active:scale-95 disabled:opacity-50"
+            className="flex items-center space-x-2 px-5 py-2 rounded-xl bg-[#ff6d5a] hover:bg-[#ff8575] text-sm font-bold text-white shadow-lg shadow-[#ff6d5a]/25 transition-all hover:scale-105 active:scale-95 disabled:opacity-50"
           >
             <PlayCircle size={18} />
-            <span>{isRunning ? 'Executing...' : 'Run Workflow'}</span>
+            <span>{isRunning ? 'Executing...' : 'Execute Workflow'}</span>
           </button>
         </div>
       </header>
 
-      {/* Main Content Area */}
+      {/* Main Canvas Area */}
       <div className="relative flex-1 flex">
-        {/* Left Node Library Palette */}
-        <aside className="w-64 border-r border-white/10 bg-slate-900/80 backdrop-blur-md p-4 z-10 flex flex-col space-y-4">
+        {/* Left n8n Node Library Sidebar */}
+        <aside className="w-64 border-r border-white/10 bg-[#10141d] backdrop-blur-md p-4 z-10 flex flex-col space-y-4">
           <div>
-            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 flex items-center space-x-1">
-              <Sparkles size={14} className="text-indigo-400" />
-              <span>Node Library</span>
+            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 flex items-center space-x-1.5">
+              <Sparkles size={14} className="text-[#ff6d5a]" />
+              <span>Nodes Panel</span>
             </h3>
-            <p className="text-xs text-gray-400 mb-4">Click any node below to add it to your DAG workflow graph.</p>
+            <p className="text-xs text-gray-400 mb-4">Click any node to append it to the visual canvas.</p>
           </div>
 
           <div className="space-y-2 overflow-y-auto flex-1 pr-1">
@@ -346,7 +340,7 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
                 >
                   <Icon size={18} />
                   <div>
-                    <div className="text-xs font-semibold text-white group-hover:text-indigo-300">{item.title}</div>
+                    <div className="text-xs font-bold text-white group-hover:text-[#ff6d5a]">{item.title}</div>
                     <div className="text-[10px] text-gray-400">{item.category}</div>
                   </div>
                 </button>
@@ -367,14 +361,14 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
             nodeTypes={nodeTypes}
             fitView
           >
-            <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#334155" />
+            <Background variant={BackgroundVariant.Dots} gap={20} size={1.2} color="#252c3d" />
             <Controls />
-            <MiniMap maskColor="rgba(15, 23, 42, 0.7)" nodeColor="#6366f1" />
+            <MiniMap maskColor="rgba(13, 16, 23, 0.8)" nodeColor="#ff6d5a" />
           </ReactFlow>
 
-          {/* Execution Result Banner Overlay */}
+          {/* Execution Result Banner */}
           {runResult && (
-            <div className="absolute bottom-6 left-6 right-6 max-w-2xl bg-slate-900/95 border border-white/10 p-4 rounded-xl backdrop-blur-xl shadow-2xl z-20 space-y-2">
+            <div className="absolute bottom-6 left-6 right-6 max-w-2xl bg-[#161a23] border border-white/10 p-4 rounded-xl backdrop-blur-xl shadow-2xl z-20 space-y-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
                   {runResult.status === 'succeeded' ? (
@@ -382,15 +376,12 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
                   ) : (
                     <XCircle className="text-rose-400" size={20} />
                   )}
-                  <span className="font-semibold text-sm">
-                    Execution {runResult.status?.toUpperCase() || 'COMPLETED'}
+                  <span className="font-bold text-sm">
+                    Execution {runResult.status?.toUpperCase() || 'FINISHED'}
                   </span>
                   <span className="text-xs text-gray-400 font-mono">Run ID: {runResult.id}</span>
                 </div>
-                <button
-                  onClick={() => setRunResult(null)}
-                  className="text-xs text-gray-400 hover:text-white"
-                >
+                <button onClick={() => setRunResult(null)} className="text-xs text-gray-400 hover:text-white">
                   Close
                 </button>
               </div>
@@ -402,7 +393,7 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
               )}
 
               {runResult.outputs && (
-                <div className="text-xs font-mono bg-black/40 p-2 rounded text-emerald-300 max-h-32 overflow-y-auto">
+                <div className="text-xs font-mono bg-[#0d1017] p-2.5 rounded text-emerald-400 max-h-32 overflow-y-auto">
                   <pre>{JSON.stringify(runResult.outputs, null, 2)}</pre>
                 </div>
               )}
@@ -410,7 +401,7 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
           )}
         </div>
 
-        {/* Right Node Property Inspector Drawer */}
+        {/* Right Node Inspector Drawer */}
         {selectedNode && (
           <NodeInspectorDrawer
             node={selectedNode}
@@ -423,7 +414,7 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
 
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed bottom-5 right-5 bg-indigo-600 text-white px-4 py-2.5 rounded-xl shadow-xl text-sm font-medium z-50 animate-bounce">
+        <div className="fixed bottom-5 right-5 bg-[#ff6d5a] text-white px-4 py-2.5 rounded-xl shadow-2xl text-sm font-bold z-50 animate-bounce">
           {toastMessage}
         </div>
       )}

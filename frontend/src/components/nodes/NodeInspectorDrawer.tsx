@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { X, Trash2, Sliders, Play, Code2, Globe, Clock, Terminal, GitFork, Timer, Webhook } from 'lucide-react';
+import { X, Trash2, Sliders } from 'lucide-react';
 import { CustomNodeData } from './CustomNode';
 
 interface NodeInspectorDrawerProps {
@@ -36,12 +36,12 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({ node, 
   };
 
   return (
-    <div className="fixed right-0 top-16 bottom-0 w-96 bg-slate-900/95 border-l border-white/10 backdrop-blur-xl z-30 shadow-2xl flex flex-col transition-all duration-300">
+    <div className="fixed right-0 top-16 bottom-0 w-96 bg-[#161a23] border-l border-white/10 backdrop-blur-xl z-30 shadow-2xl flex flex-col transition-all duration-300">
       {/* Header */}
-      <div className="flex items-center justify-between px-5 py-4 border-b border-white/10 bg-slate-950/50">
+      <div className="flex items-center justify-between px-5 py-4 border-b border-white/10 bg-[#10141d]">
         <div className="flex items-center space-x-2">
-          <Sliders className="text-indigo-400" size={18} />
-          <h3 className="text-base font-semibold text-white">Configure Node</h3>
+          <Sliders className="text-[#ff6d5a]" size={18} />
+          <h3 className="text-sm font-bold text-white uppercase tracking-wider">Node Inspector</h3>
         </div>
         <div className="flex items-center space-x-2">
           <button
@@ -62,44 +62,40 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({ node, 
 
       {/* Form Content */}
       <div className="flex-1 overflow-y-auto p-5 space-y-6">
-        {/* Node ID & Label */}
         <div className="space-y-3">
           <div>
-            <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Node ID</label>
-            <div className="mt-1 font-mono text-xs text-indigo-300 bg-black/40 px-3 py-2 rounded-lg border border-white/5">
+            <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Node ID</label>
+            <div className="mt-1 font-mono text-xs text-[#ff6d5a] bg-[#0d1017] px-3 py-2 rounded-lg border border-white/5">
               {node.id}
             </div>
           </div>
 
           <div>
-            <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Node Title / Label</label>
+            <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Node Title / Label</label>
             <input
               type="text"
               value={label}
               onChange={(e) => handleLabelChange(e.target.value)}
               placeholder="Custom Label"
-              className="mt-1 w-full bg-slate-950/70 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition-colors"
+              className="mt-1 w-full bg-[#0d1017] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#ff6d5a] transition-colors"
             />
           </div>
         </div>
 
         <div className="h-px bg-white/10" />
 
-        {/* Dynamic Config Fields based on Node Type */}
+        {/* Dynamic Config Fields */}
         <div className="space-y-4">
-          <h4 className="text-xs font-semibold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
-            Node Configuration
-          </h4>
+          <h4 className="text-xs font-bold text-[#ff6d5a] uppercase tracking-wider">Parameters</h4>
 
-          {/* HTTP Request Config */}
           {nodeType === 'http_request' && (
             <div className="space-y-4">
               <div>
-                <label className="text-xs text-gray-300">HTTP Method</label>
+                <label className="text-xs text-gray-300 font-semibold">HTTP Method</label>
                 <select
                   value={config.method || 'GET'}
                   onChange={(e) => handleConfigChange('method', e.target.value)}
-                  className="mt-1 w-full bg-slate-950 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+                  className="mt-1 w-full bg-[#0d1017] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#ff6d5a]"
                 >
                   <option value="GET">GET</option>
                   <option value="POST">POST</option>
@@ -110,18 +106,18 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({ node, 
               </div>
 
               <div>
-                <label className="text-xs text-gray-300">Target URL</label>
+                <label className="text-xs text-gray-300 font-semibold">Target URL</label>
                 <input
                   type="text"
                   value={config.url || ''}
                   onChange={(e) => handleConfigChange('url', e.target.value)}
-                  placeholder="https://api.example.com/webhook"
-                  className="mt-1 w-full bg-slate-950 border border-white/10 rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-indigo-500"
+                  placeholder="https://api.example.com/endpoint"
+                  className="mt-1 w-full bg-[#0d1017] border border-white/10 rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-[#ff6d5a]"
                 />
               </div>
 
               <div>
-                <label className="text-xs text-gray-300">Headers (JSON format or key-value)</label>
+                <label className="text-xs text-gray-300 font-semibold">Headers (JSON)</label>
                 <textarea
                   value={typeof config.headers === 'string' ? config.headers : JSON.stringify(config.headers || {}, null, 2)}
                   onChange={(e) => {
@@ -134,79 +130,68 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({ node, 
                   }}
                   rows={3}
                   placeholder='{"Content-Type": "application/json"}'
-                  className="mt-1 w-full bg-slate-950 border border-white/10 rounded-lg p-3 text-xs text-emerald-300 font-mono focus:outline-none focus:border-indigo-500"
+                  className="mt-1 w-full bg-[#0d1017] border border-white/10 rounded-lg p-3 text-xs text-cyan-300 font-mono focus:outline-none focus:border-[#ff6d5a]"
                 />
               </div>
 
               <div>
-                <label className="text-xs text-gray-300">Body Payload</label>
+                <label className="text-xs text-gray-300 font-semibold">Body Payload</label>
                 <textarea
                   value={typeof config.body === 'string' ? config.body : JSON.stringify(config.body || {}, null, 2)}
                   onChange={(e) => handleConfigChange('body', e.target.value)}
                   rows={4}
                   placeholder='{"key": "value"}'
-                  className="mt-1 w-full bg-slate-950 border border-white/10 rounded-lg p-3 text-xs text-emerald-300 font-mono focus:outline-none focus:border-indigo-500"
+                  className="mt-1 w-full bg-[#0d1017] border border-white/10 rounded-lg p-3 text-xs text-cyan-300 font-mono focus:outline-none focus:border-[#ff6d5a]"
                 />
               </div>
             </div>
           )}
 
-          {/* Delay Node Config */}
           {nodeType === 'delay' && (
             <div>
-              <label className="text-xs text-gray-300">Delay Duration (milliseconds)</label>
+              <label className="text-xs text-gray-300 font-semibold">Delay Duration (ms)</label>
               <input
                 type="number"
                 value={config.duration_ms || config.delay_ms || 1000}
                 onChange={(e) => handleConfigChange('duration_ms', parseInt(e.target.value) || 0)}
                 placeholder="1000"
-                className="mt-1 w-full bg-slate-950 border border-white/10 rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-indigo-500"
+                className="mt-1 w-full bg-[#0d1017] border border-white/10 rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-[#ff6d5a]"
               />
-              <p className="mt-1 text-[11px] text-gray-400">1000 ms = 1 second delay</p>
             </div>
           )}
 
-          {/* Cron Schedule Config */}
           {(nodeType === 'cron' || nodeType === 'schedule') && (
-            <div className="space-y-3">
-              <div>
-                <label className="text-xs text-gray-300">Cron Expression</label>
-                <input
-                  type="text"
-                  value={config.cron || '*/5 * * * *'}
-                  onChange={(e) => handleConfigChange('cron', e.target.value)}
-                  placeholder="*/5 * * * *"
-                  className="mt-1 w-full bg-slate-950 border border-white/10 rounded-lg px-3 py-2 text-sm text-amber-300 font-mono focus:outline-none focus:border-amber-500"
-                />
-              </div>
-              <div className="text-[11px] text-gray-400 space-y-1 bg-black/30 p-2.5 rounded-lg">
-                <p>• <code className="text-amber-400">*/5 * * * *</code> : Every 5 minutes</p>
-                <p>• <code className="text-amber-400">0 * * * *</code> : Every hour</p>
-                <p>• <code className="text-amber-400">0 0 * * *</code> : Midnight daily</p>
-              </div>
+            <div>
+              <label className="text-xs text-gray-300 font-semibold">Cron Expression</label>
+              <input
+                type="text"
+                value={config.cron || '*/5 * * * *'}
+                onChange={(e) => handleConfigChange('cron', e.target.value)}
+                placeholder="*/5 * * * *"
+                className="mt-1 w-full bg-[#0d1017] border border-white/10 rounded-lg px-3 py-2 text-sm text-[#ff6d5a] font-mono focus:outline-none focus:border-[#ff6d5a]"
+              />
             </div>
           )}
 
-          {/* Condition Logic Config */}
           {nodeType === 'condition' && (
             <div className="space-y-4">
               <div>
-                <label className="text-xs text-gray-300">Target Field / Expression</label>
+                <label className="text-xs text-gray-300 font-semibold">Target Field</label>
                 <input
                   type="text"
                   value={config.field || ''}
                   onChange={(e) => handleConfigChange('field', e.target.value)}
-                  placeholder="e.g. status or output.code"
-                  className="mt-1 w-full bg-slate-950 border border-white/10 rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-indigo-500"
+                  placeholder="status"
+                  className="mt-1 w-full bg-[#0d1017] border border-white/10 rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-[#ff6d5a]"
                 />
               </div>
 
               <div>
-                <label className="text-xs text-gray-300">Operator</label>
+                <label className="text-xs text-gray-300 font-semibold">Operator</label>
                 <select
                   value={config.operator || '=='}
                   onChange={(e) => handleConfigChange('operator', e.target.value)}
-                  className="mt-1 w-full bg-slate-950 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+                  className="mt-1 w-full bg-[#0d1017] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#ff6d5a]"
                 >
                   <option value="==">Equals (==)</option>
                   <option value="!=">Not Equals (!=)</option>
@@ -217,65 +202,51 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({ node, 
               </div>
 
               <div>
-                <label className="text-xs text-gray-300">Comparison Value</label>
+                <label className="text-xs text-gray-300 font-semibold">Comparison Value</label>
                 <input
                   type="text"
                   value={config.value || ''}
                   onChange={(e) => handleConfigChange('value', e.target.value)}
-                  placeholder="200 or true"
-                  className="mt-1 w-full bg-slate-950 border border-white/10 rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-indigo-500"
+                  placeholder="200"
+                  className="mt-1 w-full bg-[#0d1017] border border-white/10 rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-[#ff6d5a]"
                 />
               </div>
             </div>
           )}
 
-          {/* Logger Config */}
           {nodeType === 'logger' && (
             <div>
-              <label className="text-xs text-gray-300">Log Message / Text</label>
+              <label className="text-xs text-gray-300 font-semibold">Log Message</label>
               <textarea
                 value={config.message || ''}
                 onChange={(e) => handleConfigChange('message', e.target.value)}
                 rows={3}
-                placeholder="Execution logged successfully..."
-                className="mt-1 w-full bg-slate-950 border border-white/10 rounded-lg p-3 text-xs text-cyan-300 font-mono focus:outline-none focus:border-cyan-500"
+                placeholder="Workflow execution step completed..."
+                className="mt-1 w-full bg-[#0d1017] border border-white/10 rounded-lg p-3 text-xs text-blue-300 font-mono focus:outline-none focus:border-[#ff6d5a]"
               />
             </div>
           )}
 
-          {/* JSON Parser Config */}
           {nodeType === 'json_parser' && (
             <div>
-              <label className="text-xs text-gray-300">JSON String / Expression</label>
+              <label className="text-xs text-gray-300 font-semibold">JSON Input Expression</label>
               <textarea
                 value={config.json_string || ''}
                 onChange={(e) => handleConfigChange('json_string', e.target.value)}
                 rows={4}
-                placeholder='{"user_id": 123}'
-                className="mt-1 w-full bg-slate-950 border border-white/10 rounded-lg p-3 text-xs text-teal-300 font-mono focus:outline-none focus:border-teal-500"
+                placeholder='{"user_id": 104}'
+                className="mt-1 w-full bg-[#0d1017] border border-white/10 rounded-lg p-3 text-xs text-emerald-300 font-mono focus:outline-none focus:border-[#ff6d5a]"
               />
             </div>
           )}
 
-          {/* Webhook Config */}
           {nodeType === 'webhook' && (
-            <div className="space-y-3">
-              <div className="p-3 bg-purple-950/30 border border-purple-500/20 rounded-lg text-xs text-purple-300 space-y-1">
-                <p className="font-semibold text-purple-200">Webhook Listener Active</p>
-                <p className="text-gray-400">
-                  Triggers workflow automatically when an HTTP POST payload is sent to:
-                </p>
-                <p className="font-mono text-purple-300 bg-black/40 p-1.5 rounded border border-purple-500/30 break-all">
-                  /webhook/&#123;workflow_id&#125;
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Manual Config */}
-          {nodeType === 'manual' && (
-            <div className="p-3 bg-emerald-950/30 border border-emerald-500/20 rounded-lg text-xs text-emerald-300">
-              Triggered manually by clicking the <span className="font-semibold text-white">"Run Workflow"</span> button in the canvas bar.
+            <div className="p-3 bg-[#ff6d5a]/10 border border-[#ff6d5a]/30 rounded-lg text-xs text-gray-200 space-y-1">
+              <p className="font-bold text-[#ff6d5a]">n8n Webhook Listener Active</p>
+              <p className="text-gray-400">Triggers on HTTP POST to:</p>
+              <p className="font-mono text-[#ff6d5a] bg-[#0d1017] p-1.5 rounded border border-white/10 break-all">
+                /webhook/&#123;workflow_id&#125;
+              </p>
             </div>
           )}
         </div>

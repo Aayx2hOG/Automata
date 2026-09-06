@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Play, Edit3, Webhook, Clock, Trash2, ArrowUpRight, Sparkles, CheckCircle, AlertCircle } from 'lucide-react';
+import { Search, Play, Edit3, Webhook, Clock, ArrowUpRight, Plus, CheckCircle, AlertCircle } from 'lucide-react';
 import { Workflow } from '../../types';
 
 interface WorkflowListProps {
@@ -29,7 +29,7 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Search & Filter Bar */}
+      {/* Search Bar */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="relative w-full sm:w-80">
           <Search className="absolute left-3.5 top-3 text-gray-400" size={18} />
@@ -37,8 +37,8 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search workflows..."
-            className="w-full bg-slate-900/80 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500 transition-colors"
+            placeholder="Filter workflows..."
+            className="w-full bg-[#161a23] border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#ff6d5a] transition-colors"
           />
         </div>
 
@@ -49,20 +49,17 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({
 
       {/* Empty State */}
       {filteredWorkflows.length === 0 && (
-        <div className="p-12 text-center rounded-2xl border border-dashed border-white/10 bg-slate-900/40 backdrop-blur-md">
-          <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center mx-auto mb-4">
-            <Sparkles size={24} />
-          </div>
-          <h3 className="text-base font-semibold text-white">No workflows found</h3>
-          <p className="text-sm text-gray-400 mt-1 max-w-md mx-auto">
-            {searchTerm ? 'Try adjusting your search query or clear filters.' : 'Get started by creating your first visual automation graph.'}
+        <div className="p-12 text-center rounded-2xl border border-dashed border-white/10 bg-[#161a23]/60">
+          <h3 className="text-base font-bold text-white">No workflows found</h3>
+          <p className="text-xs text-gray-400 mt-1 max-w-md mx-auto">
+            {searchTerm ? 'Try adjusting your search query.' : 'Create your first n8n-style visual workflow.'}
           </p>
           {!searchTerm && (
             <button
               onClick={onNewWorkflow}
-              className="mt-5 inline-flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold shadow-lg shadow-indigo-600/30 transition-all hover:scale-105"
+              className="mt-5 inline-flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-[#ff6d5a] hover:bg-[#ff8575] text-white text-xs font-bold shadow-lg shadow-[#ff6d5a]/30 transition-all hover:scale-105"
             >
-              <Sparkles size={16} />
+              <Plus size={16} />
               <span>Create Workflow</span>
             </button>
           )}
@@ -74,13 +71,13 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({
         {filteredWorkflows.map((workflow) => (
           <div
             key={workflow.id}
-            className="rounded-2xl border border-white/10 bg-slate-900/70 hover:bg-slate-900/90 backdrop-blur-xl p-5 flex flex-col justify-between space-y-5 transition-all duration-300 hover:border-indigo-500/50 hover:shadow-2xl hover:shadow-indigo-500/10 group"
+            className="rounded-2xl border border-white/10 bg-[#161a23] hover:border-[#ff6d5a]/60 p-5 flex flex-col justify-between space-y-5 transition-all duration-300 shadow-xl group"
           >
             {/* Card Header */}
             <div>
               <div className="flex items-center justify-between mb-3">
                 <span
-                  className={`inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-[11px] font-semibold border ${
+                  className={`inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-[11px] font-bold border ${
                     workflow.is_active
                       ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
                       : 'bg-gray-500/10 text-gray-400 border-gray-500/20'
@@ -97,10 +94,10 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({
 
               <h3
                 onClick={() => onSelect(workflow)}
-                className="text-lg font-bold text-white group-hover:text-indigo-300 transition-colors cursor-pointer flex items-center justify-between"
+                className="text-base font-bold text-white group-hover:text-[#ff6d5a] transition-colors cursor-pointer flex items-center justify-between"
               >
                 <span>{workflow.name}</span>
-                <ArrowUpRight size={18} className="opacity-0 group-hover:opacity-100 transition-opacity text-indigo-400" />
+                <ArrowUpRight size={16} className="opacity-0 group-hover:opacity-100 transition-opacity text-[#ff6d5a]" />
               </h3>
 
               <p className="text-xs text-gray-400 mt-1.5 line-clamp-2">
@@ -108,27 +105,27 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({
               </p>
             </div>
 
-            {/* Quick Action Buttons */}
+            {/* Quick Actions */}
             <div className="pt-4 border-t border-white/5 flex items-center justify-between">
               <div className="flex items-center space-x-1">
                 <button
                   onClick={() => onOpenWebhook(workflow)}
-                  className="p-2 rounded-lg text-purple-400 hover:bg-purple-500/10 hover:text-purple-300 transition-colors"
+                  className="p-2 rounded-lg text-purple-400 hover:bg-purple-500/10 transition-colors"
                   title="Webhook URL"
                 >
                   <Webhook size={16} />
                 </button>
                 <button
                   onClick={() => onOpenSchedule(workflow)}
-                  className="p-2 rounded-lg text-amber-400 hover:bg-amber-500/10 hover:text-amber-300 transition-colors"
+                  className="p-2 rounded-lg text-amber-400 hover:bg-amber-500/10 transition-colors"
                   title="Cron Schedule"
                 >
                   <Clock size={16} />
                 </button>
                 <button
                   onClick={() => onSelect(workflow)}
-                  className="p-2 rounded-lg text-blue-400 hover:bg-blue-500/10 hover:text-blue-300 transition-colors"
-                  title="Edit Visual Canvas"
+                  className="p-2 rounded-lg text-cyan-400 hover:bg-cyan-500/10 transition-colors"
+                  title="Edit Canvas"
                 >
                   <Edit3 size={16} />
                 </button>
@@ -136,10 +133,10 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({
 
               <button
                 onClick={() => onRun(workflow.id)}
-                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-indigo-600/80 hover:bg-indigo-500 text-white text-xs font-semibold shadow transition-all hover:scale-105 active:scale-95"
+                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-[#ff6d5a] hover:bg-[#ff8575] text-white text-xs font-bold shadow-md shadow-[#ff6d5a]/20 transition-all hover:scale-105"
               >
                 <Play size={14} />
-                <span>Run</span>
+                <span>Execute</span>
               </button>
             </div>
           </div>

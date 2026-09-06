@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Clock, Plus, Trash2, Calendar, AlertCircle } from 'lucide-react';
+import { Clock, Plus, Trash2, Calendar } from 'lucide-react';
 import { Schedule, Workflow } from '../../types';
 
 interface SchedulesManagerProps {
@@ -32,7 +32,7 @@ export const SchedulesManager: React.FC<SchedulesManagerProps> = ({
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 font-sans">
       <div>
         <h2 className="text-lg font-bold text-white flex items-center space-x-2">
           <Clock className="text-amber-400" size={22} />
@@ -42,19 +42,19 @@ export const SchedulesManager: React.FC<SchedulesManagerProps> = ({
       </div>
 
       {/* Schedule Creation Card */}
-      <div className="p-6 rounded-2xl bg-slate-900/80 border border-white/10 backdrop-blur-xl shadow-xl space-y-4">
-        <h3 className="text-sm font-semibold text-white flex items-center space-x-2">
-          <Plus size={16} className="text-indigo-400" />
+      <div className="p-6 rounded-2xl bg-[#161a23] border border-white/10 shadow-xl space-y-4">
+        <h3 className="text-sm font-bold text-white flex items-center space-x-2">
+          <Plus size={16} className="text-[#ff6d5a]" />
           <span>Create New Schedule</span>
         </h3>
 
         <form onSubmit={handleCreate} className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
           <div>
-            <label className="text-xs font-semibold text-gray-300 uppercase tracking-wider">Select Workflow</label>
+            <label className="text-xs font-bold text-gray-300 uppercase tracking-wider">Select Workflow</label>
             <select
               value={selectedWorkflowId}
               onChange={(e) => setSelectedWorkflowId(e.target.value)}
-              className="mt-1 w-full bg-slate-950 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500"
+              className="mt-1 w-full bg-[#0d1017] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#ff6d5a]"
             >
               {workflows.map((wf) => (
                 <option key={wf.id} value={wf.id}>
@@ -65,20 +65,20 @@ export const SchedulesManager: React.FC<SchedulesManagerProps> = ({
           </div>
 
           <div>
-            <label className="text-xs font-semibold text-gray-300 uppercase tracking-wider">Cron Expression</label>
+            <label className="text-xs font-bold text-gray-300 uppercase tracking-wider">Cron Expression</label>
             <input
               type="text"
               value={cronExpression}
               onChange={(e) => setCronExpression(e.target.value)}
               placeholder="*/5 * * * *"
-              className="mt-1 w-full bg-slate-950 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-amber-300 font-mono focus:outline-none focus:border-amber-500"
+              className="mt-1 w-full bg-[#0d1017] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-amber-300 font-mono focus:outline-none focus:border-[#ff6d5a]"
             />
           </div>
 
           <button
             type="submit"
             disabled={isSubmitting || !selectedWorkflowId}
-            className="px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-sm font-semibold shadow-lg shadow-amber-600/30 transition-all hover:scale-105 disabled:opacity-50"
+            className="px-5 py-2.5 rounded-xl bg-[#ff6d5a] hover:bg-[#ff8575] text-white text-xs font-bold shadow-lg shadow-[#ff6d5a]/30 transition-all hover:scale-105 disabled:opacity-50"
           >
             {isSubmitting ? 'Creating...' : 'Activate Schedule'}
           </button>
@@ -86,8 +86,8 @@ export const SchedulesManager: React.FC<SchedulesManagerProps> = ({
       </div>
 
       {/* Active Schedules Table */}
-      <div className="rounded-2xl border border-white/10 bg-slate-900/70 backdrop-blur-xl overflow-hidden shadow-2xl">
-        <div className="px-6 py-4 border-b border-white/10 font-semibold text-sm text-white flex items-center space-x-2">
+      <div className="rounded-2xl border border-white/10 bg-[#161a23] overflow-hidden shadow-2xl">
+        <div className="px-6 py-4 border-b border-white/10 font-bold text-sm text-white flex items-center space-x-2">
           <Calendar size={18} className="text-amber-400" />
           <span>Active Schedules ({schedules.length})</span>
         </div>
@@ -98,7 +98,7 @@ export const SchedulesManager: React.FC<SchedulesManagerProps> = ({
           </div>
         ) : (
           <table className="w-full text-left text-xs">
-            <thead className="bg-slate-950/80 text-gray-400 uppercase tracking-wider font-semibold border-b border-white/10">
+            <thead className="bg-[#0d1017] text-gray-400 uppercase tracking-wider font-bold border-b border-white/10">
               <tr>
                 <th className="px-6 py-3">Schedule ID</th>
                 <th className="px-6 py-3">Workflow ID</th>
@@ -110,7 +110,7 @@ export const SchedulesManager: React.FC<SchedulesManagerProps> = ({
             <tbody className="divide-y divide-white/5 font-mono text-gray-200">
               {schedules.map((sched) => (
                 <tr key={sched.id} className="hover:bg-white/5 transition-colors">
-                  <td className="px-6 py-4 text-amber-300">{sched.id.slice(0, 8)}...</td>
+                  <td className="px-6 py-4 text-[#ff6d5a] font-bold">{sched.id.slice(0, 8)}...</td>
                   <td className="px-6 py-4 text-gray-400">{sched.workflow_id.slice(0, 8)}...</td>
                   <td className="px-6 py-4 font-bold text-amber-400">{sched.cron_expression}</td>
                   <td className="px-6 py-4 text-gray-300">

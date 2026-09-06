@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AuthPage } from './components/auth/AuthPage';
 import { Header } from './components/common/Header';
+import { LandingPage } from './components/home/LandingPage';
 import { MetricsOverview } from './components/dashboard/MetricsOverview';
 import { WorkflowList } from './components/dashboard/WorkflowList';
 import { CreateWorkflowModal } from './components/dashboard/CreateWorkflowModal';
@@ -81,7 +82,7 @@ const MOCK_RUNS: WorkflowRun[] = [
 
 const MainApp: React.FC = () => {
   const { isAuthenticated, isLoading } = useAuth();
-  const [activeTab, setActiveTab] = useState<'workflows' | 'runs' | 'schedules' | 'webhooks'>('workflows');
+  const [activeTab, setActiveTab] = useState<'home' | 'workflows' | 'runs' | 'schedules' | 'webhooks'>('home');
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [runs, setRuns] = useState<WorkflowRun[]>(MOCK_RUNS);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
@@ -216,10 +217,10 @@ const MainApp: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#0b0f19] flex items-center justify-center text-indigo-400">
+      <div className="min-h-screen bg-[#0b0e14] flex items-center justify-center text-[#ff6d5a]">
         <div className="flex flex-col items-center space-y-3">
-          <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-          <span className="text-sm font-medium text-gray-300">Loading Automata...</span>
+          <div className="w-10 h-10 border-4 border-[#ff6d5a] border-t-transparent rounded-full animate-spin" />
+          <span className="text-xs font-bold text-gray-300">Loading Automata...</span>
         </div>
       </div>
     );
@@ -229,7 +230,7 @@ const MainApp: React.FC = () => {
     return <AuthPage />;
   }
 
-  // Active Visual Graph Editor View
+  // Active Visual Graph Editor Canvas View
   if (activeWorkflow) {
     return (
       <WorkflowCanvas
@@ -247,7 +248,7 @@ const MainApp: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#0b0f19] text-gray-100 flex flex-col font-sans">
+    <div className="min-h-screen bg-[#090d16] text-gray-100 flex flex-col font-sans">
       <Header
         activeTab={activeTab}
         setActiveTab={setActiveTab}
@@ -255,23 +256,30 @@ const MainApp: React.FC = () => {
       />
 
       <main className="flex-1 max-w-7xl w-full mx-auto p-6 md:p-8">
-        <MetricsOverview
-          workflows={workflows}
-          runCount={runs.length}
-          scheduleCount={schedules.length}
-        />
+        {activeTab === 'home' && (
+          <LandingPage
+            workflows={workflows}
+            onLaunchStudio={() => setIsCreateModalOpen(true)}
+            onOpenWorkflow={handleOpenWorkflowCanvas}
+            onNavigateTab={setActiveTab}
+          />
+        )}
+
+        {activeTab !== 'home' && (
+          <MetricsOverview
+            workflows={workflows}
+            runCount={runs.length}
+            scheduleCount={schedules.length}
+          />
+        )}
 
         {activeTab === 'workflows' && (
           <WorkflowList
             workflows={workflows}
             onSelect={handleOpenWorkflowCanvas}
             onRun={handleRunWorkflow}
-            onOpenWebhook={(wf) => {
-              setActiveTab('webhooks');
-            }}
-            onOpenSchedule={(wf) => {
-              setActiveTab('schedules');
-            }}
+            onOpenWebhook={() => setActiveTab('webhooks')}
+            onOpenSchedule={() => setActiveTab('schedules')}
             onNewWorkflow={() => setIsCreateModalOpen(true)}
           />
         )}
