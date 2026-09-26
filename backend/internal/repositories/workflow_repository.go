@@ -29,9 +29,9 @@ func (r *pgWorkflowRepository) Create(ctx context.Context, w *models.Workflow) e
 	query := `
 		INSERT INTO workflows (owner_id, name, description, is_active)
 		VALUES ($1, $2, $3, $4)
-		RETURNING id, created_at, updated_at
+		RETURNING id, created_at, updated_at, webhook_secret
 	`
-	err := r.pool.QueryRow(ctx, query, w.OwnerID, w.Name, w.Description, w.IsActive).Scan(&w.ID, &w.CreatedAt, &w.UpdatedAt)
+	err := r.pool.QueryRow(ctx, query, w.OwnerID, w.Name, w.Description, w.IsActive).Scan(&w.ID, &w.CreatedAt, &w.UpdatedAt, &w.WebhookSecret)
 	if err != nil {
 		return fmt.Errorf("insert workflow: %w", err)
 	}
@@ -40,14 +40,14 @@ func (r *pgWorkflowRepository) Create(ctx context.Context, w *models.Workflow) e
 
 func (r *pgWorkflowRepository) GetById(ctx context.Context, id uuid.UUID) (*models.Workflow, error) {
 	query := `
-SELECT id, owner_id, name, description, is_active, created_at, updated_at
+SELECT id, owner_id, name, description, is_active, created_at, updated_at, webhook_secret
 		FROM workflows
 		WHERE id = $1
 	`
 	w := models.Workflow{}
 	var description *string
 
-	err := r.pool.QueryRow(ctx, query, id).Scan(&w.ID, &w.OwnerID, &w.Name, &description, &w.IsActive, &w.CreatedAt, &w.UpdatedAt)
+	err := r.pool.QueryRow(ctx, query, id).Scan(&w.ID, &w.OwnerID, &w.Name, &description, &w.IsActive, &w.CreatedAt, &w.UpdatedAt, &w.WebhookSecret)
 
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, models.ErrWorkflowNotFound
@@ -66,7 +66,7 @@ SELECT id, owner_id, name, description, is_active, created_at, updated_at
 
 func (r *pgWorkflowRepository) ListByOwner(ctx context.Context, ownerID uuid.UUID) ([]models.Workflow, error) {
 	query := `
-		SELECT id, owner_id, name, description, is_active, created_at, updated_at
+		SELECT id, owner_id, name, description, is_active, created_at, updated_at, webhook_secret
 		FROM workflows
 		WHERE owner_id = $1
 		ORDER BY created_at DESC
@@ -82,7 +82,7 @@ func (r *pgWorkflowRepository) ListByOwner(ctx context.Context, ownerID uuid.UUI
 	for rows.Next() {
 		w := models.Workflow{}
 		var description *string
-		if err := rows.Scan(&w.ID, &w.OwnerID, &w.Name, &description, &w.IsActive, &w.CreatedAt, &w.UpdatedAt); err != nil {
+		if err := rows.Scan(&w.ID, &w.OwnerID, &w.Name, &description, &w.IsActive, &w.CreatedAt, &w.UpdatedAt, &w.WebhookSecret); err != nil {
 			return nil, fmt.Errorf("scan workflow row: %w", err)
 		}
 		if description != nil {

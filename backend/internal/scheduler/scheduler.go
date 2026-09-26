@@ -39,6 +39,13 @@ func (s *Scheduler) ParseNext(cronExpr string, after time.Time) (time.Time, erro
 }
 
 func (s *Scheduler) Run(ctx context.Context) {
+	workerDone := make(chan struct{})
+	go func() {
+		defer close(workerDone)
+		s.processRuns(ctx)
+	}()
+	defer func() { <-workerDone }()
+	s.tick(ctx)
 	ticker := time.NewTicker(s.interval)
 	defer ticker.Stop()
 
@@ -75,11 +82,30 @@ func (s *Scheduler) trigger(ctx context.Context, schedule models.Schedule, now t
 		return
 	}
 
-	if err := s.schedules.MarkRun(ctx, schedule.ID, now, nextRun); err != nil {
+	if err := s.schedules.EnqueueRun(ctx, schedule, now, nextRun); err != nil {
 		s.logger.Error("scheduled run failed to enqueue",
 			zap.String("schedule_id", schedule.ID.String()),
 			zap.String("workflow_id", schedule.WorkflowID.String()),
 			zap.Error(err),
 		)
+	}
+}
+
+func (s *Scheduler) processRuns(ctx context.Context) {
+	for ctx.Err() == nil {
+		processed, err := s.schedules.ProcessNextRun(ctx, s.workflowServices.ExecuteDurableGraph)
+		if err != nil && ctx.Err() == nil {
+			s.logger.Error("execution failed to persist", zap.Error(err))
+		}
+		if processed && err == nil {
+			continue
+		}
+		timer := time.NewTimer(time.Second)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return
+		case <-timer.C:
+		}
 	}
 }

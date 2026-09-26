@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 
 	"github.com/Aayx2hOG/automata/internal/models"
@@ -28,15 +29,22 @@ func (h *WebhookHandler) Trigger(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	payload := map[string]any{}
-	if r.Body != nil {
-		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-			http.Error(w, "Invalid JSON", http.StatusBadRequest)
-			return
-		}
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1<<20))
+	if err != nil {
+		respondError(w, h.logger, http.StatusRequestEntityTooLarge, "webhook body exceeds limit")
+		return
+	}
+	if err := h.WorkflowService.VerifyWebhook(r.Context(), workflowID, r.Header.Get("X-Webhook-Timestamp"), r.Header.Get("X-Webhook-Signature"), body); err != nil {
+		respondError(w, h.logger, http.StatusUnauthorized, "invalid webhook signature")
+		return
+	}
+	payload := map[string]interface{}{}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		respondError(w, h.logger, http.StatusBadRequest, "invalid JSON")
+		return
 	}
 	if payload == nil {
-		payload = map[string]any{}
+		payload = map[string]interface{}{}
 	}
 
 	run, err := h.WorkflowService.TriggerWebhook(r.Context(), workflowID, payload)

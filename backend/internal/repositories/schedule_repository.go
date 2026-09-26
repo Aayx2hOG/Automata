@@ -14,7 +14,8 @@ type ScheduleRepository interface {
 	Create(ctx context.Context, s *models.Schedule) error
 	ListByWorkflow(ctx context.Context, workflowID uuid.UUID) ([]models.Schedule, error)
 	ListDue(ctx context.Context, now time.Time) ([]models.Schedule, error)
-	MarkRun(ctx context.Context, id uuid.UUID, ranAt, nextRunAt time.Time) error
+	EnqueueRun(ctx context.Context, schedule models.Schedule, ranAt, nextRunAt time.Time) error
+	ProcessNextRun(ctx context.Context, execute ScheduledExecutor) (bool, error)
 	Deactivate(ctx context.Context, id, workflowOwnerID uuid.UUID) error
 }
 
@@ -90,18 +91,6 @@ func (r *pgScheduleRepository) ListDue(ctx context.Context, now time.Time) ([]mo
 		schedules = append(schedules, s)
 	}
 	return schedules, rows.Err()
-}
-
-func (r *pgScheduleRepository) MarkRun(ctx context.Context, id uuid.UUID, ranAt, nextRunAt time.Time) error {
-	_, err := r.pool.Exec(ctx,
-		`UPDATE schedules SET last_run_at = $1, next_run_at = $2 WHERE id = $3`,
-		ranAt, nextRunAt, id,
-	)
-	if err != nil {
-		return fmt.Errorf("mark schedule run: %w", err)
-	}
-
-	return nil
 }
 
 func (r *pgScheduleRepository) Deactivate(ctx context.Context, id, workflowOwnerID uuid.UUID) error {

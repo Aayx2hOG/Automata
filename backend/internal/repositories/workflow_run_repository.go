@@ -14,6 +14,7 @@ import (
 )
 
 type WorkflowRunRepository interface {
+	Enqueue(ctx context.Context, workflowID, versionID uuid.UUID, trigger models.TriggerType, seed map[string]interface{}) (*models.WorkflowRun, error)
 	Create(ctx context.Context, workflowID, workflowVersionID uuid.UUID, triggerType models.TriggerType) (*models.WorkflowRun, error)
 	MarkRunning(ctx context.Context, runID uuid.UUID) error
 	UpdateResult(ctx context.Context, runID uuid.UUID, status models.RunStatus, outputs map[string]interface{}, errMsg *string, finishedAt time.Time) error
@@ -113,4 +114,28 @@ func (r *pgWorkflowRunRepository) GetByID(ctx context.Context, id uuid.UUID) (*m
 	}
 
 	return &run, nil
+}
+
+func (r *pgWorkflowRunRepository) Enqueue(ctx context.Context, workflowID, versionID uuid.UUID, trigger models.TriggerType, seed map[string]interface{}) (*models.WorkflowRun, error) {
+	payload, err := json.Marshal(seed)
+	if err != nil {
+		return nil, err
+	}
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(context.Background())
+	run := &models.WorkflowRun{WorkflowID: workflowID, WorkflowVersionID: versionID, TriggerType: trigger}
+	err = tx.QueryRow(ctx, `INSERT INTO workflow_runs(workflow_id,workflow_version_id,trigger_type) VALUES($1,$2,$3) RETURNING id,status,created_at`, workflowID, versionID, trigger).Scan(&run.ID, &run.Status, &run.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	if _, err = tx.Exec(ctx, `INSERT INTO schedule_outbox(run_id,seed_data) VALUES($1,$2::jsonb)`, run.ID, payload); err != nil {
+		return nil, err
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return run, nil
 }

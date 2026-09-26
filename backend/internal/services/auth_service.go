@@ -104,11 +104,21 @@ func (s *AuthService) Refresh(ctx context.Context, rawRefreshToken string) (*Aut
 		return nil, err
 	}
 
-	if err := s.refreshTokens.Revoke(ctx, hash); err != nil {
+	if !user.IsActive {
+		return nil, models.ErrorInvalidToken
+	}
+	access, err := s.jwtManager.GenerateAccessToken(user.ID, user.Role)
+	if err != nil {
 		return nil, err
 	}
-
-	return s.issueTokens(ctx, user)
+	raw, err := auth.GenerateRefreshToken()
+	if err != nil {
+		return nil, err
+	}
+	if err = s.refreshTokens.Rotate(ctx, hash, auth.HashRefreshToken(raw), user.ID, time.Now().Add(s.refreshTTL)); err != nil {
+		return nil, err
+	}
+	return &AuthResult{User: user, AccessToken: access, RefreshToken: raw}, nil
 }
 
 func (s *AuthService) Logout(ctx context.Context, rawRefreshToken string) error {

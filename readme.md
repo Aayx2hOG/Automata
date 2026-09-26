@@ -13,11 +13,11 @@ This project is under active development. Current progress by phase:
 | 1 | Foundation: config, database, authentication, CI | Complete |
 | 2 | Workflow engine: graph model, validation, execution | Complete |
 | 3 | Core nodes (HTTP, Delay, Logger, Condition, Webhook, JSON Parser, Manual) | Complete |
-| 4 | Worker system: job queue, worker pool, concurrency, retries | Complete |
+| 4 | Durable execution: PostgreSQL outbox, concurrent consumers, retries | Complete |
 | 5 | Scheduler & Triggers: cron scheduler, webhook triggers | Complete |
 | 6 | Frontend: visual workflow editor | Complete |
 | 7 | Integrations: GitHub, Discord, Slack, SMTP | Not started |
-| 8 | Production readiness: metrics, tracing, secrets | In progress |
+| 8 | Production readiness: execution security implemented; metrics, tracing, secrets management pending | In progress |
 
 ## Tech stack
 
@@ -51,6 +51,24 @@ type Node interface {
 ```
 
 New node types are added by implementing this interface and registering them in the registry — the execution engine itself never needs to change. Graphs are validated for cycles and dangling references before execution, and every run is persisted with its status, outputs, and timing.
+
+### Durable execution
+
+Manual, webhook, and cron triggers atomically persist a workflow run and a PostgreSQL outbox entry. Webhook payloads are stored with the job, and each run uses the workflow version selected when it was created. Scheduled occurrences also advance their schedule in the same transaction, with a unique occurrence key preventing duplicate run records.
+
+Each server runs one outbox consumer through the scheduler, even when no cron schedules exist. Consumers use `FOR UPDATE SKIP LOCKED` to coordinate across instances. Workflow errors receive up to two retries with 2-second and 4-second delays, within a shared 60-second execution timeout. Shutdown or connection loss rolls back unfinished consumption so it can be retried.
+
+Execution is **at least once**: external side effects may repeat after a retry or crash, so downstream actions should support idempotency. The consumer holds a database connection and transaction during execution; runs remain visibly pending until the terminal result commits. Keep database idle-in-transaction timeouts longer than the execution timeout. Missed cron intervals are skipped rather than replayed.
+
+See [durable execution details](backend/docs/scheduled-execution.md) for transaction semantics and operational limits.
+
+### Execution security
+
+- Webhooks require a per-workflow HMAC-SHA256 signature and a timestamp within five minutes of server time. Request bodies are limited to 1 MiB.
+- HTTP request nodes accept public HTTP(S) destinations without URL credentials. DNS results and redirect destinations are validated, connections use validated IPs, and environment proxies are not used. Internal service URLs are blocked, and response bodies are limited to 4 MiB after decompression.
+- Refresh-token rotation revokes the old token and creates its replacement atomically. Revoked, expired, or concurrently reused tokens cannot rotate again, and inactive users cannot refresh.
+
+See [execution security details](backend/docs/execution-security.md) for webhook signing and compatibility changes.
 
 ## Getting started
 
@@ -97,6 +115,8 @@ Run migrations:
 export $(grep -v '^#' .env | xargs)
 migrate -path internal/database/migrations -database "$DATABASE_URL" up
 ```
+
+Before starting the updated server, apply migrations through `000010_execution_security`. Migration `000009_schedule_outbox` adds durable dispatch and schedule occurrence identity; `000010_execution_security` adds persisted webhook payloads and generates independent webhook secrets for existing workflows.
 
 ### Running the server
 
@@ -149,7 +169,16 @@ curl http://localhost:8080/healthz
 
 | Method | Path | Description |
 |---|---|---|
-| POST | `/webhook/{workflowID}` | Trigger a workflow via external HTTP webhook payload |
+| POST | `/webhook/{workflowID}` | Trigger a workflow with a signed JSON webhook payload |
+
+Retrieve `webhook_secret` from an authenticated workflow create, get, or list response. Send these headers with each webhook request:
+
+| Header | Value |
+|---|---|
+| `X-Webhook-Timestamp` | Unix timestamp in seconds, within ±300 seconds of server time |
+| `X-Webhook-Signature` | Hex-encoded HMAC-SHA256 of `timestamp + "." + exact_request_body`, using the workflow's secret string as the key |
+
+Use the secret string directly, without hex-decoding it, and sign the exact bytes sent as the body. Unsigned or invalidly signed requests receive `401`; bodies larger than 1 MiB receive `413`. Valid signatures can be replayed within the timestamp window, so deduplicate event IDs when repeated delivery must not repeat business effects.
 
 ### Health
 
@@ -161,10 +190,10 @@ Authenticated requests carry a JWT in the `Authorization` header: `Authorization
 
 ## Testing
 
-Unit tests (pure logic, no external dependencies):
+Run these commands from `backend/`. Unit tests and HTTP/webhook security tests (no external dependencies):
 
 ```bash
-go test ./tests/unit/... -v
+go test ./tests/unit/... ./internal/nodes/http_request ./internal/services -v
 ```
 
 Integration tests (require a running PostgreSQL instance with migrations applied):
@@ -173,6 +202,14 @@ Integration tests (require a running PostgreSQL instance with migrations applied
 export $(grep -v '^#' .env | xargs)
 go test ./tests/integration/... -v
 ```
+
+Durable execution regression tests use a separate test database and create and remove isolated schemas:
+
+```bash
+TEST_DATABASE_URL=postgres://... go test ./internal/repositories -v
+```
+
+These cover transactional rollback, competing schedulers and consumers, interrupted consumption, and terminal failure acknowledgement. They are skipped when `TEST_DATABASE_URL` is unset; API integration tests are skipped when `DATABASE_URL` is unset. Set both variables to include both database suites in a full run.
 
 Run everything with race detection and coverage:
 
@@ -189,6 +226,7 @@ Every push and pull request runs `go vet`, `go build`, and the full test suite a
 ```
 backend/
     cmd/            entry points (server, migrate)
+    docs/           durable execution and security documentation
     internal/
         api/        HTTP handlers, router, server lifecycle
         auth/       JWT, password hashing, refresh token logic
@@ -198,13 +236,13 @@ backend/
         models/     domain types and typed errors
         nodes/      individual workflow node implementations
         repositories/ database access layer
+        scheduler/  cron scheduling and durable outbox consumption
         services/   business logic
         telemetry/  structured logging
         workflow/   graph validation, execution engine, node registry
     tests/
         unit/       fast, dependency-free tests
         integration/ tests against a real database
-docker/             Dockerfile and Compose configuration
-docs/               architecture and design documentation
-frontend/           planned Next.js application
+docker-compose.yml  local PostgreSQL service
+frontend/           React + Vite visual workflow editor
 ```

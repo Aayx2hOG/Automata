@@ -22,6 +22,7 @@ type RefreshToken struct {
 }
 
 type RefreshTokenRepository interface {
+	Rotate(ctx context.Context, oldHash, newHash string, userID uuid.UUID, expiresAt time.Time) error
 	Create(ctx context.Context, userID uuid.UUID, tokenHash string, expiresAt time.Time) error
 	GetByHash(ctx context.Context, tokenHash string) (*RefreshToken, error)
 	Revoke(ctx context.Context, tokenHash string) error
@@ -91,4 +92,30 @@ func (r *pgRefreshTokenRepository) RevokeAllForUser(ctx context.Context, userID 
 		return fmt.Errorf("revoke all refresh tokens for user: %w", err)
 	}
 	return nil
+}
+
+func (r *pgRefreshTokenRepository) Rotate(ctx context.Context, oldHash, newHash string, userID uuid.UUID, expiresAt time.Time) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(context.Background())
+	var active bool
+	if err = tx.QueryRow(ctx, `SELECT is_active FROM users WHERE id=$1 FOR SHARE`, userID).Scan(&active); err != nil {
+		return err
+	}
+	if !active {
+		return models.ErrorInvalidToken
+	}
+	tag, err := tx.Exec(ctx, `UPDATE refresh_tokens SET revoked_at=clock_timestamp() WHERE token_hash=$1 AND user_id=$2 AND revoked_at IS NULL AND expires_at>clock_timestamp()`, oldHash, userID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() != 1 {
+		return models.ErrorInvalidToken
+	}
+	if _, err = tx.Exec(ctx, `INSERT INTO refresh_tokens(user_id,token_hash,expires_at) VALUES($1,$2,$3)`, userID, newHash, expiresAt); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }

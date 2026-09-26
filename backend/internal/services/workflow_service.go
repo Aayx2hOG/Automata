@@ -2,12 +2,14 @@ package services
 
 import (
 	"context"
-	"fmt"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
+	"strconv"
 	"time"
 
 	"github.com/Aayx2hOG/automata/internal/models"
 	"github.com/Aayx2hOG/automata/internal/node"
-	"github.com/Aayx2hOG/automata/internal/queue"
 	"github.com/Aayx2hOG/automata/internal/repositories"
 	"github.com/Aayx2hOG/automata/internal/workflow"
 	"github.com/google/uuid"
@@ -24,7 +26,6 @@ type WorkflowService struct {
 	versions  repositories.WorkflowVersionRepository
 	runs      repositories.WorkflowRunRepository
 	engine    *workflow.Engine
-	queue     *queue.Queue
 	logger    *zap.Logger
 }
 
@@ -33,7 +34,6 @@ func NewWorkflowService(
 	versions repositories.WorkflowVersionRepository,
 	runs repositories.WorkflowRunRepository,
 	engine *workflow.Engine,
-	q *queue.Queue,
 	logger *zap.Logger,
 ) *WorkflowService {
 	return &WorkflowService{
@@ -41,7 +41,6 @@ func NewWorkflowService(
 		versions:  versions,
 		runs:      runs,
 		engine:    engine,
-		queue:     q,
 		logger:    logger,
 	}
 }
@@ -105,17 +104,8 @@ func (s *WorkflowService) RunWorkflow(ctx context.Context, id, requesterID uuid.
 		return nil, err
 	}
 
-	run, err := s.runs.Create(ctx, wf.ID, version.ID, models.TriggerManual)
-	if err != nil {
-		return nil, err
-	}
+	return s.runs.Enqueue(ctx, wf.ID, version.ID, models.TriggerManual, nil)
 
-	job := queue.Job{RunID: run.ID, Graph: version.Graph, Attempt: 0, MaxRetries: defaultMaxRetries}
-	if !s.queue.Enqueue(job) {
-		return s.failEnqueue(ctx, run)
-	}
-
-	return run, nil
 }
 
 func (s *WorkflowService) TriggerWebhook(ctx context.Context, workflowID uuid.UUID, payload map[string]interface{}) (*models.WorkflowRun, error) {
@@ -132,91 +122,8 @@ func (s *WorkflowService) TriggerWebhook(ctx context.Context, workflowID uuid.UU
 		return nil, err
 	}
 
-	run, err := s.runs.Create(ctx, wf.ID, version.ID, models.TriggerWebhook)
-	if err != nil {
-		return nil, err
-	}
+	return s.runs.Enqueue(ctx, wf.ID, version.ID, models.TriggerWebhook, payload)
 
-	job := queue.Job{RunID: run.ID, Graph: version.Graph, SeedNodeType: "webhook_trigger", SeedData: payload}
-	if !s.queue.Enqueue(job) {
-		return s.failEnqueue(ctx, run)
-	}
-
-	return run, nil
-}
-
-func (s *WorkflowService) failEnqueue(ctx context.Context, run *models.WorkflowRun) (*models.WorkflowRun, error) {
-	msg := "job queue is full, try again shortly"
-	finishedAt := time.Now()
-	if err := s.runs.UpdateResult(ctx, run.ID, models.RunStatusFailed, nil, &msg, finishedAt); err != nil {
-		s.logger.Error("failed to record enqueue failure", zap.Error(err))
-	}
-	return nil, fmt.Errorf("job queue is full")
-}
-
-func (s *WorkflowService) ExecuteJob(ctx context.Context, job queue.Job) {
-	if err := s.runs.MarkRunning(ctx, job.RunID); err != nil {
-		s.logger.Error("failed to mark run running", zap.Error(err), zap.String("run_id", job.RunID.String()))
-	}
-
-	execCtx, cancel := context.WithTimeout(ctx, defaultExecutionTimeout)
-	defer cancel()
-
-	nodeCtx := &node.ExecutionContext{Ctx: execCtx}
-
-	var result *workflow.ExecutionResult
-	if job.SeedNodeType != "" {
-		result = s.engine.RunWithSeededOutput(nodeCtx, job.Graph, job.SeedNodeType, job.SeedData)
-	} else {
-		result = s.engine.Run(nodeCtx, job.Graph)
-	}
-
-	if result.Error != nil && job.Attempt < job.MaxRetries {
-		s.retryJob(ctx, job, result.Error)
-		return
-	}
-	s.finalizeRun(ctx, job.RunID, result)
-}
-
-func (s *WorkflowService) retryJob(ctx context.Context, job queue.Job, cause error) {
-	nextAttempt := job.Attempt + 1
-	backoff := time.Duration(nextAttempt) * 2 * time.Second
-
-	s.logger.Warn("run failed, scheduling retry",
-		zap.String("run_id", job.RunID.String()),
-		zap.Int("attempt", nextAttempt),
-		zap.Int("max_retries", job.MaxRetries),
-		zap.Duration("backoff", backoff),
-		zap.Error(cause),
-	)
-
-	retryJob := job
-	retryJob.Attempt = nextAttempt
-
-	go func() {
-		time.Sleep(backoff)
-		if !s.queue.Enqueue(retryJob) {
-			msg := "job queue full during retry"
-			_ = s.runs.UpdateResult(context.Background(), retryJob.RunID, models.RunStatusFailed, nil, &msg, time.Now())
-		}
-	}()
-}
-
-func (s *WorkflowService) finalizeRun(ctx context.Context, runID uuid.UUID, result *workflow.ExecutionResult) {
-	outputs := flattenOutputs(result.Outputs)
-	finishedAt := time.Now()
-
-	status := models.RunStatusSucceeded
-	var errMsg *string
-	if result.Error != nil {
-		status = models.RunStatusFailed
-		msg := result.Error.Error()
-		errMsg = &msg
-	}
-
-	if err := s.runs.UpdateResult(ctx, runID, status, outputs, errMsg, finishedAt); err != nil {
-		s.logger.Error("failed to record run result", zap.Error(err), zap.String("run_id", runID.String()))
-	}
 }
 
 func flattenOutputs(outputs map[string]map[string]interface{}) map[string]interface{} {
@@ -227,41 +134,64 @@ func flattenOutputs(outputs map[string]map[string]interface{}) map[string]interf
 	return flattened
 }
 
-func (s *WorkflowService) RunScheduled(ctx context.Context, workflowID uuid.UUID) (*models.WorkflowRun, error) {
-	wf, err := s.workflows.GetById(ctx, workflowID)
-	if err != nil {
-		return nil, err
-	}
-	if !wf.IsActive {
-		return nil, models.ErrorWorkflowInactive
-	}
-
-	version, err := s.versions.GetLatestByWorkflow(ctx, wf.ID)
-	if err != nil {
-		return nil, err
-	}
-
-	run, err := s.runs.Create(ctx, wf.ID, version.ID, models.TriggerCron)
-	if err != nil {
-		return nil, err
-	}
-
-	job := queue.Job{
-		RunID:      run.ID,
-		Graph:      version.Graph,
-		Attempt:    0,
-		MaxRetries: defaultMaxRetries,
-	}
-	if !s.queue.Enqueue(job) {
-		return s.failEnqueue(ctx, run)
-	}
-
-	return run, nil
-}
-
 func (s *WorkflowService) CreateSchedule(ctx context.Context, ownerID, workflowID uuid.UUID, cronExpr string) (*models.Schedule, error) {
 	if _, err := s.GetWorkflow(ctx, workflowID, ownerID); err != nil {
 		return nil, err
 	}
-	return nil, nil // placeholder replaced by scheduler.go
+	return nil, nil
+}
+
+func (s *WorkflowService) ExecuteDurableGraph(ctx context.Context, graph models.WorkflowGraph, seed map[string]interface{}) (map[string]interface{}, error) {
+	execCtx, cancel := context.WithTimeout(ctx, defaultExecutionTimeout)
+	defer cancel()
+	for attempt := 0; ; attempt++ {
+		var result *workflow.ExecutionResult
+		if seed != nil {
+			result = s.engine.RunWithSeededOutput(&node.ExecutionContext{Ctx: execCtx}, graph, "webhook_trigger", seed)
+		} else {
+			result = s.engine.Run(&node.ExecutionContext{Ctx: execCtx}, graph)
+		}
+		if execCtx.Err() != nil {
+			return flattenOutputs(result.Outputs), execCtx.Err()
+		}
+		if result.Error == nil || attempt == defaultMaxRetries {
+			return flattenOutputs(result.Outputs), result.Error
+		}
+		timer := time.NewTimer(time.Duration(attempt+1) * 2 * time.Second)
+		select {
+		case <-execCtx.Done():
+			timer.Stop()
+			return flattenOutputs(result.Outputs), execCtx.Err()
+		case <-timer.C:
+		}
+	}
+}
+
+func (s *WorkflowService) VerifyWebhook(ctx context.Context, id uuid.UUID, timestamp, signature string, body []byte) error {
+	seconds, err := strconv.ParseInt(timestamp, 10, 64)
+	if err != nil {
+		return models.ErrorInvalidToken
+	}
+	now := time.Now().Unix()
+	if seconds < now-300 || seconds > now+300 {
+		return models.ErrorInvalidToken
+	}
+	supplied, err := hex.DecodeString(signature)
+	if err != nil {
+		return models.ErrorInvalidToken
+	}
+	wf, err := s.workflows.GetById(ctx, id)
+	if err != nil {
+		return models.ErrorInvalidToken
+	}
+	if wf.WebhookSecret == "" || !wf.IsActive {
+		return models.ErrorInvalidToken
+	}
+	mac := hmac.New(sha256.New, []byte(wf.WebhookSecret))
+	mac.Write([]byte(timestamp + "."))
+	mac.Write(body)
+	if !hmac.Equal(supplied, mac.Sum(nil)) {
+		return models.ErrorInvalidToken
+	}
+	return nil
 }
