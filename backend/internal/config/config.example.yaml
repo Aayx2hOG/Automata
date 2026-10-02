@@ -14,6 +14,10 @@ database:
   url: postgres://automata:automata@localhost:5432/automata?sslmode=disable
   max_conns: 10
 
+worker:
+  concurrency: 4 # WORKER_CONCURRENCY
+  queue_capacity: 64 # WORKER_QUEUE_CAPACITY; durable IDs only
+
 auth:
   jwt_secret: change-me-to-a-random-32-byte-string # required, min 32 chars
   access_token_ttl: 15m

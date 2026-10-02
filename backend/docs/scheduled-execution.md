@@ -1,6 +1,9 @@
 # Durable scheduled execution
 
-Apply migrations through `000010_execution_security` before starting the updated server.
+Stop older server instances, apply migrations through `000011_outbox_leases`,
+then start the updated server. Do not mix old lock-based consumers with leased
+workers: old consumers do not respect lease ownership. Rollback also requires
+stopping all new workers before reverting the migration and application.
 
 Scheduled, manual, and webhook runs share a PostgreSQL transactional outbox.
 Manual and webhook requests commit the run and outbox entry together.
@@ -12,21 +15,36 @@ A unique `(schedule_id, scheduled_for)` index protects occurrence identity.
 Concurrent schedulers with a stale due-list entry cannot advance it again.
 The workflow version is captured when the run is created.
 
-Each scheduler process also runs one outbox consumer. It polls once per second
-when idle and drains available work immediately. It locks an outbox row with
-`SKIP LOCKED`, executes the graph directly, then commits the result and removes
-the outbox entry in the same transaction. PostgreSQL releases the lock when a
-failed connection is detected, making unfinished work available again. Shutdown
-cancellation rolls back consumption instead of recording a terminal failure.
+Startup launches the cron scheduler, outbox dispatcher, and worker pool separately.
+The dispatcher polls once per second and places only run IDs in a bounded in-memory
+queue. Full queues and lost process memory leave the database outbox untouched.
+Local hints are deduplicated until execution finishes. Workers claim after dequeue,
+so queued IDs consume no lease. Across instances, competing claims coordinate with
+`FOR UPDATE SKIP LOCKED` in a short transaction. Graph/version and webhook payload
+are loaded from the database while claiming, and `running` status commits immediately.
+
+The claim has a random ownership token and 30-second lease, renewed every 10 seconds.
+Execution holds no database connection between heartbeats. Database operations have
+five-second deadlines. A failed heartbeat cancels the executor; expired leases are
+reclaimable. Completion atomically stores the terminal result and removes the outbox
+row, conditional on the current unexpired token. A stale worker cannot acknowledge
+or release a replacement worker's job. Graceful cancellation releases ownership and
+returns the run to pending; process loss is recovered after lease expiry. If release
+fails during a database outage, lease expiry still recovers the job.
+
 Workflow errors receive up to two retries within a shared 60-second execution
 timeout; exhausted retries are recorded as failed and acknowledged.
 
-This deliberately holds one database connection and a transaction while a
-scheduled workflow executes. The running status is not visible outside that
-transaction; the run remains visibly pending until its terminal result commits.
-Keep database idle-in-transaction timeouts longer than the execution timeout.
-For higher throughput or longer workflows, replace the consumer lock with
-renewable leases and fenced acknowledgements, or relay to a durable broker.
+`WORKER_CONCURRENCY` defaults to 4; `WORKER_QUEUE_CAPACITY` defaults to 64.
+Tune concurrency for node resource usage and brief database claim/renewal demand.
+Node implementations must honor context cancellation. Lease fencing protects
+database results, but cannot undo an HTTP request or other external side effect.
+
+Workflow and initial version creation is a single transaction. During traversal,
+persisted webhook data replaces the webhook trigger's fallback output. Each join
+waits for all incoming edges to resolve. It runs once if any incoming edge is active;
+otherwise it is skipped and resolves its outgoing edges as inactive. Errors abort
+the attempt rather than treating a failed branch as skipped.
 
 Execution is at least once across crashes: an external HTTP request may succeed
 before the result transaction commits. Nodes that perform non-repeatable actions
@@ -41,9 +59,11 @@ Run the PostgreSQL regression tests against a test database:
 
 ```sh
 cd backend
-TEST_DATABASE_URL=postgres://... go test ./internal/repositories -v
+TEST_DATABASE_URL=postgres://... go test -race ./internal/repositories ./internal/workflow ./internal/queue ./internal/worker
 ```
 
 The tests create and remove isolated schemas and cover transactional rollback,
-competing schedulers, competing consumers, interrupted consumption, and terminal
-failure acknowledgement. Without `TEST_DATABASE_URL`, these tests are skipped.
+competing schedulers/consumers, webhook replay through the engine, visible running
+status with a single database connection, renewal, stale-owner fencing, interrupted
+consumption, and atomic creation/acknowledgement. Database tests are skipped without
+`TEST_DATABASE_URL`; CI sets it explicitly. Engine and worker tests need no database.

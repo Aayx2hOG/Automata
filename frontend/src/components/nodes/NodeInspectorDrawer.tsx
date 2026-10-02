@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { X, Trash2, Sliders } from 'lucide-react';
 import { CustomNodeData } from './CustomNode';
 
@@ -10,15 +10,8 @@ interface NodeInspectorDrawerProps {
 }
 
 export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({ node, onClose, onUpdate, onDelete }) => {
-  const [label, setLabel] = useState('');
-  const [config, setConfig] = useState<Record<string, any>>({});
-
-  useEffect(() => {
-    if (node) {
-      setLabel(node.data.label || '');
-      setConfig(node.data.config || {});
-    }
-  }, [node]);
+  const [label, setLabel] = useState(node?.data.label || '');
+  const [config, setConfig] = useState<Record<string, any>>(node?.data.config || {});
 
   if (!node) return null;
 
@@ -149,11 +142,11 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({ node, 
 
           {nodeType === 'delay' && (
             <div>
-              <label className="text-xs text-gray-300 font-semibold">Delay Duration (ms)</label>
+              <label className="text-xs text-gray-300 font-semibold">Delay Duration (seconds)</label>
               <input
                 type="number"
-                value={config.duration_ms || config.delay_ms || 1000}
-                onChange={(e) => handleConfigChange('duration_ms', parseInt(e.target.value) || 0)}
+                value={config.seconds ?? 1}
+                onChange={(e) => handleConfigChange('seconds', Number(e.target.value) || 0)}
                 placeholder="1000"
                 className="mt-1 w-full bg-[#0d1017] border border-white/10 rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-[#ff6d5a]"
               />
@@ -179,8 +172,8 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({ node, 
                 <label className="text-xs text-gray-300 font-semibold">Target Field</label>
                 <input
                   type="text"
-                  value={config.field || ''}
-                  onChange={(e) => handleConfigChange('field', e.target.value)}
+                  value={config.source_field || ''}
+                  onChange={(e) => handleConfigChange('source_field', e.target.value)}
                   placeholder="status"
                   className="mt-1 w-full bg-[#0d1017] border border-white/10 rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-[#ff6d5a]"
                 />
@@ -189,15 +182,13 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({ node, 
               <div>
                 <label className="text-xs text-gray-300 font-semibold">Operator</label>
                 <select
-                  value={config.operator || '=='}
+                  value={config.operator || 'equals'}
                   onChange={(e) => handleConfigChange('operator', e.target.value)}
                   className="mt-1 w-full bg-[#0d1017] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#ff6d5a]"
                 >
-                  <option value="==">Equals (==)</option>
-                  <option value="!=">Not Equals (!=)</option>
-                  <option value=">">Greater Than (&gt;)</option>
-                  <option value="<">Less Than (&lt;)</option>
-                  <option value="contains">Contains</option>
+                  <option value="equals">Equals</option>
+                  <option value="not_equal">Not equal</option>
+                  <option value="exists">Exists</option>
                 </select>
               </div>
 
@@ -227,22 +218,20 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({ node, 
             </div>
           )}
 
-          {nodeType === 'json_parser' && (
-            <div>
-              <label className="text-xs text-gray-300 font-semibold">JSON Input Expression</label>
-              <textarea
-                value={config.json_string || ''}
-                onChange={(e) => handleConfigChange('json_string', e.target.value)}
-                rows={4}
-                placeholder='{"user_id": 104}'
-                className="mt-1 w-full bg-[#0d1017] border border-white/10 rounded-lg p-3 text-xs text-emerald-300 font-mono focus:outline-none focus:border-[#ff6d5a]"
-              />
+          {(nodeType === 'condition' || nodeType === 'json_parser') && (
+            <div className="space-y-3">
+              <label className="block text-xs text-gray-300">Source node ID
+                <input value={config.source_node || ''} onChange={e => handleConfigChange('source_node', e.target.value)} className="mt-1 w-full bg-[#0d1017] rounded p-2" placeholder="http_req_1" />
+              </label>
+              {nodeType === 'json_parser' && <label className="block text-xs text-gray-300">Source field (JSON array)
+                <input value={config.source_field || ''} onChange={e => handleConfigChange('source_field', e.target.value)} className="mt-1 w-full bg-[#0d1017] rounded p-2" placeholder="body" />
+              </label>}
             </div>
           )}
 
-          {nodeType === 'webhook' && (
+          {nodeType === 'webhook_trigger' && (
             <div className="p-3 bg-[#ff6d5a]/10 border border-[#ff6d5a]/30 rounded-lg text-xs text-gray-200 space-y-1">
-              <p className="font-bold text-[#ff6d5a]">n8n Webhook Listener Active</p>
+              <p className="font-bold text-[#ff6d5a]">Signed Webhook Trigger</p>
               <p className="text-gray-400">Triggers on HTTP POST to:</p>
               <p className="font-mono text-[#ff6d5a] bg-[#0d1017] p-1.5 rounded border border-white/10 break-all">
                 /webhook/&#123;workflow_id&#125;

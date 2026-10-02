@@ -17,7 +17,7 @@ const PRESET_TEMPLATES = [
     color: 'text-[#ff6d5a] border-[#ff6d5a]/40 bg-[#ff6d5a]/10',
     graph: {
       nodes: [
-        { id: 'webhook_1', type: 'webhook', config: {}, position: { x: 250, y: 100 } },
+        { id: 'webhook_1', type: 'webhook_trigger', config: {}, position: { x: 250, y: 100 } },
         { id: 'http_req_1', type: 'http_request', config: { method: 'POST', url: 'https://httpbin.org/post' }, position: { x: 250, y: 260 } },
         { id: 'logger_1', type: 'logger', config: { message: 'Alert sent successfully' }, position: { x: 250, y: 420 } },
       ],
@@ -30,12 +30,12 @@ const PRESET_TEMPLATES = [
   {
     id: 'cron_scheduler',
     name: 'Scheduled Data Fetcher',
-    description: 'Runs on a cron schedule (every 5 mins), fetches telemetry data, and logs the execution output.',
+    description: 'Fetches telemetry data and logs output. Add a cron schedule in Schedules after creating.',
     icon: Clock,
     color: 'text-amber-400 border-amber-500/40 bg-amber-950/40',
     graph: {
       nodes: [
-        { id: 'cron_1', type: 'cron', config: { cron: '*/5 * * * *' }, position: { x: 250, y: 100 } },
+        { id: 'cron_1', type: 'manual_trigger', config: {}, position: { x: 250, y: 100 } },
         { id: 'http_req_1', type: 'http_request', config: { method: 'GET', url: 'https://api.github.com/zen' }, position: { x: 250, y: 260 } },
         { id: 'logger_1', type: 'logger', config: { message: 'Scheduled sync completed' }, position: { x: 250, y: 420 } },
       ],
@@ -53,9 +53,9 @@ const PRESET_TEMPLATES = [
     color: 'text-[#ff6d5a] border-[#ff6d5a]/40 bg-[#ff6d5a]/10',
     graph: {
       nodes: [
-        { id: 'manual_1', type: 'manual', config: {}, position: { x: 300, y: 80 } },
+        { id: 'manual_1', type: 'manual_trigger', config: {}, position: { x: 300, y: 80 } },
         { id: 'http_req_1', type: 'http_request', config: { method: 'GET', url: 'https://httpbin.org/status/200' }, position: { x: 300, y: 220 } },
-        { id: 'condition_1', type: 'condition', config: { field: 'status', operator: '==', value: '200' }, position: { x: 300, y: 380 } },
+        { id: 'condition_1', type: 'condition', config: { source_node: 'http_req_1', source_field: 'status_code', operator: 'equals', value: '200' }, position: { x: 300, y: 380 } },
         { id: 'log_success', type: 'logger', config: { message: 'HTTP OK 200 Received' }, position: { x: 140, y: 540 } },
         { id: 'log_error', type: 'logger', config: { message: 'HTTP Error Branch' }, position: { x: 460, y: 540 } },
       ],
@@ -74,7 +74,7 @@ const PRESET_TEMPLATES = [
     icon: Plus,
     color: 'text-cyan-400 border-cyan-500/40 bg-cyan-950/40',
     graph: {
-      nodes: [{ id: 'manual_1', type: 'manual', config: {}, position: { x: 250, y: 150 } }],
+      nodes: [{ id: 'manual_1', type: 'manual_trigger', config: {}, position: { x: 250, y: 150 } }],
       edges: [],
     },
   },
@@ -83,8 +83,10 @@ const PRESET_TEMPLATES = [
 export const CreateWorkflowModal: React.FC<CreateWorkflowModalProps> = ({ isOpen, onClose, onCreate }) => {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [selectedTemplate, setSelectedTemplate] = useState(PRESET_TEMPLATES[0]);
+  const [selectedTemplate, setSelectedTemplate] = useState(PRESET_TEMPLATES[3]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const [error, setError] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
@@ -92,12 +94,13 @@ export const CreateWorkflowModal: React.FC<CreateWorkflowModalProps> = ({ isOpen
     e.preventDefault();
     if (!name.trim()) return;
 
-    setIsSubmitting(true);
+    setIsSubmitting(true); setError(null);
     try {
       await onCreate(name, description, selectedTemplate.graph);
       setName('');
       setDescription('');
       onClose();
+    } catch (err) {setError((err as Error).message);
     } finally {
       setIsSubmitting(false);
     }
@@ -119,6 +122,7 @@ export const CreateWorkflowModal: React.FC<CreateWorkflowModalProps> = ({ isOpen
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          {error && <p role="alert" className="text-rose-300">{error}</p>}
           <div className="space-y-4">
             <div>
               <label className="text-xs font-bold text-gray-300 uppercase tracking-wider">Workflow Name *</label>

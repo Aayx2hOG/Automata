@@ -11,19 +11,17 @@ import (
 	"github.com/Aayx2hOG/automata/internal/auth"
 	"github.com/Aayx2hOG/automata/internal/config"
 	"github.com/Aayx2hOG/automata/internal/database"
+	"github.com/Aayx2hOG/automata/internal/queue"
 	"github.com/Aayx2hOG/automata/internal/repositories"
 	"github.com/Aayx2hOG/automata/internal/scheduler"
 	"github.com/Aayx2hOG/automata/internal/services"
 	"github.com/Aayx2hOG/automata/internal/telemetry"
+	"github.com/Aayx2hOG/automata/internal/worker"
 	"github.com/Aayx2hOG/automata/internal/workflow"
-	"github.com/joho/godotenv"
 	"go.uber.org/zap"
 )
 
 func main() {
-	if err := godotenv.Load(); err != nil {
-		log.Println("no .env file found, relying on real environment variables.")
-	}
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf("Config error: %v", err)
@@ -60,9 +58,19 @@ func main() {
 	workflowService := services.NewWorkflowService(workflowRepo, workflowVersionRepo, workflowRunRepo, engine, logger)
 
 	workerCtx, cancelWorkers := context.WithCancel(context.Background())
+	defer cancelWorkers()
 
 	scheduleRepo := repositories.NewScheduleRepository(pool)
-	sched := scheduler.New(scheduleRepo, workflowService, logger)
+	jobQueue := queue.NewQueue(cfg.Worker.QueueCapacity)
+	workers := worker.NewPool(jobQueue, func(ctx context.Context, job queue.Job) {
+		if _, err := scheduleRepo.ProcessRun(ctx, job.RunID, workflowService.ExecuteDurableGraph); err != nil && ctx.Err() == nil {
+			logger.Error("workflow execution could not finish", zap.String("run_id", job.RunID.String()), zap.Error(err))
+		}
+	}, cfg.Worker.Concurrency, logger)
+	workers.Start(workerCtx)
+	dispatcherDone := make(chan struct{})
+	go func() { defer close(dispatcherDone); worker.Dispatch(workerCtx, scheduleRepo, jobQueue, logger) }()
+	sched := scheduler.New(scheduleRepo, logger)
 	schedulerDone := make(chan struct{})
 	go func() { defer close(schedulerDone); sched.Run(workerCtx) }()
 
@@ -86,10 +94,19 @@ func main() {
 	}
 
 	cancelWorkers()
+	jobQueue.Close()
 	select {
 	case <-schedulerDone:
 	case <-shutdownCtx.Done():
-		logger.Warn("durable consumer shutdown timed out")
+		logger.Warn("scheduler shutdown timed out")
+	}
+	select {
+	case <-dispatcherDone:
+	case <-shutdownCtx.Done():
+		logger.Warn("outbox dispatcher shutdown timed out")
+	}
+	if err := workers.Shutdown(shutdownCtx); err != nil {
+		logger.Warn("workflow workers shutdown timed out", zap.Error(err))
 	}
 
 	logger.Info("server exited cleanly")

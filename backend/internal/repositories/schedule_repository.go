@@ -16,11 +16,14 @@ type ScheduleRepository interface {
 	ListDue(ctx context.Context, now time.Time) ([]models.Schedule, error)
 	EnqueueRun(ctx context.Context, schedule models.Schedule, ranAt, nextRunAt time.Time) error
 	ProcessNextRun(ctx context.Context, execute ScheduledExecutor) (bool, error)
+	ListReadyRuns(ctx context.Context, limit int) ([]uuid.UUID, error)
+	ProcessRun(ctx context.Context, id uuid.UUID, execute ScheduledExecutor) (bool, error)
 	Deactivate(ctx context.Context, id, workflowOwnerID uuid.UUID) error
 }
 
 type pgScheduleRepository struct {
-	pool *pgxpool.Pool
+	pool          *pgxpool.Pool
+	leaseDuration time.Duration
 }
 
 func NewScheduleRepository(pool *pgxpool.Pool) ScheduleRepository {

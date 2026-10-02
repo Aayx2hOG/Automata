@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"fmt"
+	"maps"
 
 	"github.com/Aayx2hOG/automata/internal/models"
 	"github.com/Aayx2hOG/automata/internal/node"
@@ -49,70 +50,56 @@ func (e *Engine) run(ctx *node.ExecutionContext, graph models.WorkflowGraph, s *
 	}
 
 	outgoing := make(map[string][]models.GraphEdge)
-	hasIncoming := make(map[string]bool, len(graph.Nodes))
+	remaining := make(map[string]int, len(graph.Nodes))
+	active := make(map[string]bool, len(graph.Nodes))
 	for _, edge := range graph.Edges {
 		outgoing[edge.FromNodeID] = append(outgoing[edge.FromNodeID], edge)
-		hasIncoming[edge.ToNodeID] = true
+		remaining[edge.ToNodeID]++
 	}
 
-	roots := []string{}
+	ready := []string{}
 	for _, n := range graph.Nodes {
-		if !hasIncoming[n.ID] {
-			roots = append(roots, n.ID)
+		if remaining[n.ID] == 0 {
+			ready = append(ready, n.ID)
+			active[n.ID] = true
 		}
 	}
-
 	outputs := make(map[string]map[string]any)
-	visited := make(map[string]bool, len(graph.Nodes))
-	queue := append([]string{}, roots...)
-
-	for len(queue) > 0 {
-		nodeID := queue[0]
-		queue = queue[1:]
-
-		if visited[nodeID] {
-			continue
+	for len(ready) > 0 {
+		nodeID := ready[0]
+		ready = ready[1:]
+		if err := ctx.Ctx.Err(); err != nil {
+			return &ExecutionResult{Outputs: outputs, Error: err, FailedNodeID: nodeID}
 		}
-		visited[nodeID] = true
-
-		graphNode, ok := nodesByID[nodeID]
-		if !ok {
-			return &ExecutionResult{
-				Outputs:      outputs,
-				Error:        fmt.Errorf("node %q referenced but not defined in graph", nodeID),
-				FailedNodeID: nodeID,
+		graphNode := nodesByID[nodeID]
+		var result map[string]any
+		if active[nodeID] {
+			if s != nil && graphNode.Type == s.nodeType {
+				// Persisted trigger data is the trigger's output, not its config.
+				result = maps.Clone(s.data)
+			} else {
+				impl, err := e.registry.Build(graphNode.Type)
+				if err != nil {
+					return &ExecutionResult{Outputs: outputs, Error: fmt.Errorf("node %q: %w", nodeID, err), FailedNodeID: nodeID}
+				}
+				result, err = impl.Execute(&node.ExecutionContext{
+					Ctx: ctx.Ctx, NodeID: nodeID, Config: graphNode.Config, Outputs: outputs,
+				})
+				if err != nil {
+					return &ExecutionResult{Outputs: outputs, Error: fmt.Errorf("node %q failed: %w", nodeID, err), FailedNodeID: nodeID}
+				}
 			}
+			outputs[nodeID] = result
 		}
-
-		impl, err := e.registry.Build(graphNode.Type)
-		if err != nil {
-			return &ExecutionResult{
-				Outputs:      outputs,
-				Error:        fmt.Errorf("node %q: %w", nodeID, err),
-				FailedNodeID: nodeID,
-			}
-		}
-
-		nodeCtx := &node.ExecutionContext{
-			Ctx:     ctx.Ctx,
-			NodeID:  nodeID,
-			Config:  graphNode.Config,
-			Outputs: outputs,
-		}
-
-		result, err := impl.Execute(nodeCtx)
-		if err != nil {
-			return &ExecutionResult{
-				Outputs:      outputs,
-				Error:        fmt.Errorf("node %q failed: %w", nodeID, err),
-				FailedNodeID: nodeID,
-			}
-		}
-		outputs[nodeID] = result
-
+		// Every edge must resolve, including edges from skipped branches. A join
+		// executes once all predecessors resolve and at least one edge is active.
 		for _, edge := range outgoing[nodeID] {
-			if edgeIsActive(edge, result) && !visited[edge.ToNodeID] {
-				queue = append(queue, edge.ToNodeID)
+			if active[nodeID] && edgeIsActive(edge, result) {
+				active[edge.ToNodeID] = true
+			}
+			remaining[edge.ToNodeID]--
+			if remaining[edge.ToNodeID] == 0 {
+				ready = append(ready, edge.ToNodeID)
 			}
 		}
 	}

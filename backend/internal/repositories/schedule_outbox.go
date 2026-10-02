@@ -2,7 +2,6 @@ package repositories
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -59,67 +58,4 @@ func (r *pgScheduleRepository) EnqueueRun(ctx context.Context, schedule models.S
 		return err
 	}
 	return tx.Commit(ctx)
-}
-
-// ProcessNextRun holds a database lock until execution and acknowledgement finish.
-// Other schedulers skip that row; connection loss releases it for retry. This uses
-// one connection per worker, with execution bounded by the service timeout.
-// External node side effects remain at-least-once across process crashes.
-func (r *pgScheduleRepository) ProcessNextRun(ctx context.Context, execute ScheduledExecutor) (bool, error) {
-	tx, err := r.pool.Begin(ctx)
-	if err != nil {
-		return false, err
-	}
-	defer tx.Rollback(context.Background())
-	var runID uuid.UUID
-	var graphJSON, seedJSON []byte
-	err = tx.QueryRow(ctx, `SELECT o.run_id, v.graph, o.seed_data FROM schedule_outbox o
-  JOIN workflow_runs r ON r.id = o.run_id
-  JOIN workflow_versions v ON v.id = r.workflow_version_id
-  ORDER BY o.created_at, o.run_id LIMIT 1 FOR UPDATE OF o SKIP LOCKED`).Scan(&runID, &graphJSON, &seedJSON)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return false, nil
-	}
-	if err != nil {
-		return false, err
-	}
-	var graph models.WorkflowGraph
-	if err = json.Unmarshal(graphJSON, &graph); err != nil {
-		return false, err
-	}
-	if _, err = tx.Exec(ctx, `UPDATE workflow_runs SET status = 'running', started_at = clock_timestamp() WHERE id = $1`, runID); err != nil {
-		return false, err
-	}
-	var seed map[string]interface{}
-	if len(seedJSON) > 0 {
-		if err = json.Unmarshal(seedJSON, &seed); err != nil {
-			return false, err
-		}
-	}
-	outputs, executionErr := execute(ctx, graph, seed)
-	if ctx.Err() != nil {
-		return false, ctx.Err()
-	}
-	status := models.RunStatusSucceeded
-	var message *string
-	if executionErr != nil {
-		status = models.RunStatusFailed
-		msg := executionErr.Error()
-		message = &msg
-	}
-	outputJSON, err := json.Marshal(outputs)
-	if err != nil {
-		return false, err
-	}
-	if _, err = tx.Exec(ctx, `UPDATE workflow_runs SET status = $2, outputs = $3::jsonb,
-  error_message = $4, finished_at = clock_timestamp() WHERE id = $1`, runID, status, outputJSON, message); err != nil {
-		return false, err
-	}
-	if _, err = tx.Exec(ctx, `DELETE FROM schedule_outbox WHERE run_id = $1`, runID); err != nil {
-		return false, err
-	}
-	if err = tx.Commit(ctx); err != nil {
-		return false, err
-	}
-	return true, nil
 }

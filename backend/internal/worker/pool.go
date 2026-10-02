@@ -2,6 +2,7 @@ package worker
 
 import (
 	"context"
+	"runtime/debug"
 	"sync"
 
 	"github.com/Aayx2hOG/automata/internal/queue"
@@ -40,12 +41,26 @@ func (p *Pool) worker(ctx context.Context, id int) {
 				p.logger.Info("worker stopping: queue closed", zap.Int("worker_id", id))
 				return
 			}
-			p.handler(ctx, job)
+			if ctx.Err() != nil {
+				p.queue.Done(job)
+				return
+			}
+			p.handle(ctx, job)
 		case <-ctx.Done():
 			p.logger.Info("worker stopping: context cancelled", zap.Int("worker_id", id))
 			return
 		}
 	}
+}
+
+func (p *Pool) handle(ctx context.Context, job queue.Job) {
+	defer p.queue.Done(job)
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			p.logger.Error("workflow worker panic", zap.Any("panic", recovered), zap.ByteString("stack", debug.Stack()))
+		}
+	}()
+	p.handler(ctx, job)
 }
 
 func (p *Pool) Shutdown(ctx context.Context) error {

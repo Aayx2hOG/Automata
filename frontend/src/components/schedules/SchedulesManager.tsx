@@ -15,17 +15,20 @@ export const SchedulesManager: React.FC<SchedulesManagerProps> = ({
   onCreateSchedule,
   onDeactivateSchedule,
 }) => {
-  const [selectedWorkflowId, setSelectedWorkflowId] = useState(workflows[0]?.id || '');
+  const [selectedId, setSelectedWorkflowId] = useState('');
+  const selectedWorkflowId = workflows.find(w => w.id === selectedId)?.id || workflows[0]?.id || '';
   const [cronExpression, setCronExpression] = useState('*/5 * * * *');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const [error, setError] = useState<string | null>(null);
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedWorkflowId || !cronExpression.trim()) return;
 
-    setIsSubmitting(true);
+    setIsSubmitting(true); setError(null);
     try {
       await onCreateSchedule(selectedWorkflowId, cronExpression);
+    } catch (err) {setError((err as Error).message);
     } finally {
       setIsSubmitting(false);
     }
@@ -33,6 +36,7 @@ export const SchedulesManager: React.FC<SchedulesManagerProps> = ({
 
   return (
     <div className="space-y-8 font-sans">
+      {error && <p role="alert" className="text-rose-300">{error}</p>}
       <div>
         <h2 className="text-lg font-bold text-white flex items-center space-x-2">
           <Clock className="text-amber-400" size={22} />
@@ -118,7 +122,7 @@ export const SchedulesManager: React.FC<SchedulesManagerProps> = ({
                   </td>
                   <td className="px-6 py-4 text-right">
                     <button
-                      onClick={() => onDeactivateSchedule(sched.id)}
+                      onClick={() => onDeactivateSchedule(sched.id).catch(err => setError(err.message))}
                       className="p-1.5 rounded-lg text-rose-400 hover:bg-rose-500/10 transition-colors"
                       title="Deactivate Schedule"
                     >

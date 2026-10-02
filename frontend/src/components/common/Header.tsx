@@ -1,6 +1,6 @@
 import React from 'react';
 import { Bot, Layers, PlayCircle, Clock, Webhook, LogOut, ShieldCheck, Plus, Home } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../context/useAuth';
 
 interface HeaderProps {
   activeTab: 'home' | 'workflows' | 'runs' | 'schedules' | 'webhooks';

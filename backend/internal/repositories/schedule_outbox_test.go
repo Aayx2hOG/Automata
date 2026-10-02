@@ -42,7 +42,7 @@ func outboxFixture(t *testing.T) (*pgScheduleRepository, models.Schedule) {
 		t.Fatal(err)
 	}
 	t.Cleanup(pool.Close)
-	for _, name := range []string{"000001_create_users", "000005_create_workflows", "000006_create_workflow_versions", "000007_create_workflow_runs", "000008_create_schedules", "000009_schedule_outbox", "000010_execution_security"} {
+	for _, name := range []string{"000001_create_users", "000005_create_workflows", "000006_create_workflow_versions", "000007_create_workflow_runs", "000008_create_schedules", "000009_schedule_outbox", "000010_execution_security", "000011_outbox_leases"} {
 		sql, err := os.ReadFile(filepath.Join("..", "database", "migrations", name+".up.sql"))
 		if err != nil {
 			t.Fatal(err)
@@ -128,7 +128,7 @@ func TestOutboxInterruptedConsumerAndAcknowledgement(t *testing.T) {
 	}
 	interrupted, cancel := context.WithCancel(ctx)
 	processed, err := r.ProcessNextRun(interrupted, func(context.Context, models.WorkflowGraph, map[string]interface{}) (map[string]interface{}, error) {
-		// Another consumer must skip the locked occurrence.
+		// Another consumer must skip the leased occurrence.
 		other, err := r.ProcessNextRun(ctx, func(context.Context, models.WorkflowGraph, map[string]interface{}) (map[string]interface{}, error) {
 			t.Error("duplicate concurrent execution")
 			return nil, nil

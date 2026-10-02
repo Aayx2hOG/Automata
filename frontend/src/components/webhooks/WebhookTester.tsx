@@ -1,27 +1,32 @@
 import React, { useState } from 'react';
 import { Webhook, Copy, Send, Check, Terminal, Globe } from 'lucide-react';
 import { Workflow } from '../../types';
-import { api } from '../../lib/api';
+import { api, API_BASE } from '../../lib/api';
 
 interface WebhookTesterProps {
   workflows: Workflow[];
 }
 
 export const WebhookTester: React.FC<WebhookTesterProps> = ({ workflows }) => {
-  const [selectedWorkflow, setSelectedWorkflow] = useState<Workflow | null>(workflows[0] || null);
+  const [selectedId, setSelectedId] = useState('');
+  const selectedWorkflow = workflows.find(w => w.id === selectedId) || workflows[0];
   const [payload, setPayload] = useState('{\n  "event": "user.signup",\n  "user": {\n    "id": 42,\n    "name": "Jane Doe"\n  }\n}');
   const [isSending, setIsSending] = useState(false);
   const [responseOutput, setResponseOutput] = useState<any>(null);
   const [copied, setCopied] = useState(false);
 
   const getWebhookUrl = (workflowId: string) => {
-    return `${window.location.origin}/api/webhook/${workflowId}`;
+    return new URL(`${API_BASE}/webhook/${workflowId}`, window.location.origin).href;
   };
 
   const getCurlSnippet = (workflowId: string) => {
-    return `curl -X POST "${window.location.origin}/api/webhook/${workflowId}" \\
-  -H "Content-Type: application/json" \\
-  -d '${payload.replace(/\n/g, '')}'`;
+    const quote = (value: string) => "'" + value.replaceAll("'", "'\\''") + "'";
+    return `read -r -s -p 'Webhook secret: ' secret; echo
+payload=${quote(payload)}
+timestamp=$(date +%s)
+signature=$(printf '%s.%s' "$timestamp" "$payload" | openssl dgst -sha256 -hmac "$secret" | awk '{print $NF}')
+curl ${quote(getWebhookUrl(workflowId))} -H 'Content-Type: application/json' -H "X-Webhook-Timestamp: $timestamp" -H "X-Webhook-Signature: $signature" --data-binary "$payload"`;
+
   };
 
   const handleCopyCurl = () => {
@@ -36,14 +41,9 @@ export const WebhookTester: React.FC<WebhookTesterProps> = ({ workflows }) => {
     setIsSending(true);
     setResponseOutput(null);
     try {
-      let parsedPayload = {};
-      try {
-        parsedPayload = JSON.parse(payload);
-      } catch {
-        parsedPayload = { text: payload };
-      }
-
-      const res = await api.webhook.trigger(selectedWorkflow.id, parsedPayload);
+      const parsed = JSON.parse(payload);
+      if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') throw new Error('Payload must be a JSON object.');
+      const res = await api.webhook.trigger(selectedWorkflow, payload);
       setResponseOutput({ status: 'Success', result: res });
     } catch (err: any) {
       setResponseOutput({ status: 'Failed', error: err.message || 'Webhook trigger error' });
@@ -73,7 +73,7 @@ export const WebhookTester: React.FC<WebhookTesterProps> = ({ workflows }) => {
               value={selectedWorkflow?.id || ''}
               onChange={(e) => {
                 const wf = workflows.find((w) => w.id === e.target.value);
-                if (wf) setSelectedWorkflow(wf);
+                if (wf) setSelectedId(wf.id);
               }}
               className="mt-1 w-full bg-[#0d1017] border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#ff6d5a]"
             >
@@ -85,6 +85,9 @@ export const WebhookTester: React.FC<WebhookTesterProps> = ({ workflows }) => {
             </select>
           </div>
 
+          {selectedWorkflow && (
+            <details className="text-xs text-gray-400"><summary>Reveal webhook signing secret</summary><code className="break-all">{selectedWorkflow.webhook_secret}</code></details>
+          )}
           {selectedWorkflow && (
             <div className="space-y-4">
               <div>

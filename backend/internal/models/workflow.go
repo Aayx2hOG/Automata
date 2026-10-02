@@ -22,10 +22,17 @@ type Workflow struct {
 	UpdatedAt     time.Time `json:"updated_at"`
 }
 
+type NodePosition struct {
+	X float64 `json:"x"`
+	Y float64 `json:"y"`
+}
+
 type GraphNode struct {
-	ID     string         `json:"id"`
-	Type   string         `json:"type"`
-	Config map[string]any `json:"config"`
+	Position *NodePosition  `json:"position,omitempty"`
+	Label    string         `json:"label,omitempty"`
+	ID       string         `json:"id"`
+	Type     string         `json:"type"`
+	Config   map[string]any `json:"config"`
 }
 
 type GraphEdge struct {

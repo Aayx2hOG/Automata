@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   ReactFlow,
   MiniMap,
@@ -30,7 +30,9 @@ import {
   CheckCircle2,
   XCircle,
 } from 'lucide-react';
-import { GraphNode, GraphEdge, WorkflowGraph } from '../../types';
+import { GraphNode, GraphEdge, WorkflowGraph, WorkflowRun } from '../../types';
+
+import { api } from '../../lib/api';
 
 const nodeTypes = {
   custom: CustomNode,
@@ -46,9 +48,8 @@ interface WorkflowCanvasProps {
 }
 
 const PALETTE_ITEMS = [
-  { type: 'webhook', title: 'Webhook Trigger', category: 'Trigger', icon: Webhook, color: 'text-[#ff6d5a] border-[#ff6d5a]/40 bg-[#ff6d5a]/10' },
-  { type: 'cron', title: 'Cron Schedule', category: 'Trigger', icon: Clock, color: 'text-[#ff6d5a] border-[#ff6d5a]/40 bg-[#ff6d5a]/10' },
-  { type: 'manual', title: 'Manual Trigger', category: 'Trigger', icon: Play, color: 'text-[#ff6d5a] border-[#ff6d5a]/40 bg-[#ff6d5a]/10' },
+  { type: 'webhook_trigger', title: 'Webhook Trigger', category: 'Trigger', icon: Webhook, color: 'text-[#ff6d5a] border-[#ff6d5a]/40 bg-[#ff6d5a]/10' },
+  { type: 'manual_trigger', title: 'Manual Trigger', category: 'Trigger', icon: Play, color: 'text-[#ff6d5a] border-[#ff6d5a]/40 bg-[#ff6d5a]/10' },
   { type: 'http_request', title: 'HTTP Request', category: 'Action', icon: Globe, color: 'text-cyan-400 border-cyan-500/40 bg-cyan-950/40' },
   { type: 'delay', title: 'Delay Pause', category: 'Action', icon: Timer, color: 'text-purple-400 border-purple-500/40 bg-purple-950/40' },
   { type: 'logger', title: 'Logger', category: 'Action', icon: Terminal, color: 'text-blue-400 border-blue-500/40 bg-blue-950/40' },
@@ -68,9 +69,23 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
   const [description, setDescription] = useState(initialDesc);
   const [isSaving, setIsSaving] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
-  const [runResult, setRunResult] = useState<any>(null);
+  const [runResult, setRunResult] = useState<WorkflowRun | null>(null);
   const [selectedNode, setSelectedNode] = useState<{ id: string; type: string; data: CustomNodeData } | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!runResult || !['pending', 'running'].includes(runResult.status)) return;
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const poll = async () => {
+      try {
+        const updated = await api.runs.get(runResult.id);
+        if (!stopped) setRunResult(updated);
+      } catch (err) {if (!stopped) {setToastMessage(`Unable to refresh run: ${(err as Error).message}`); timer = setTimeout(poll, 3000);}}
+    };
+    timer = setTimeout(poll, 1000);
+    return () => {stopped = true; clearTimeout(timer);};
+  }, [runResult]);
 
   const defaultNodes: Node[] = useMemo(() => {
     if (initialGraph?.nodes && initialGraph.nodes.length > 0) {
@@ -79,7 +94,7 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
         type: 'custom',
         position: n.position || { x: 250 + (idx % 3) * 260, y: 150 + Math.floor(idx / 3) * 160 },
         data: {
-          label: n.id,
+          label: n.label || n.id,
           type: n.type,
           config: n.config || {},
         },
@@ -90,7 +105,7 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
         id: 'webhook_1',
         type: 'custom',
         position: { x: 250, y: 100 },
-        data: { label: 'Webhook Trigger', type: 'webhook', config: {} },
+        data: { label: 'Webhook Trigger', type: 'webhook_trigger', config: {} },
       },
       {
         id: 'http_request_1',
@@ -106,9 +121,9 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
   }, [initialGraph]);
 
   const defaultEdges: Edge[] = useMemo(() => {
-    if (initialGraph?.edges && initialGraph.edges.length > 0) {
+    if (initialGraph?.edges) {
       return initialGraph.edges.map((e) => ({
-        id: `e-${e.from_node_id}-${e.to_node_id}`,
+        id: `e-${e.from_node_id}-${e.to_node_id}-${e.condition || "source"}`,
         source: e.from_node_id,
         target: e.to_node_id,
         sourceHandle: e.condition || 'source',
@@ -151,13 +166,13 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
   );
 
   const handleAddNode = (type: string) => {
-    const id = `${type}_${Date.now().toString().slice(-4)}`;
+    const id = `${type}_${crypto.randomUUID()}`;
     const newNode: Node = {
       id,
       type: 'custom',
       position: {
-        x: 300 + Math.random() * 80,
-        y: 200 + Math.random() * 80,
+        x: 300 + (nodes.length % 3) * 80,
+        y: 200 + Math.floor(nodes.length / 3) * 80,
       },
       data: {
         label: `${type.toUpperCase()} Node`,
@@ -211,6 +226,7 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
       id: n.id,
       type: (n.data as any).type || 'http_request',
       config: (n.data as any).config || {},
+      label: (n.data as any).label,
       position: { x: n.position.x, y: n.position.y },
     }));
 
@@ -246,18 +262,6 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
       setRunResult(res);
       showToast('Workflow execution triggered!');
 
-      if (res && res.outputs) {
-        setNodes((nds) =>
-          nds.map((n) => ({
-            ...n,
-            data: {
-              ...n.data,
-              status: res.status === 'succeeded' ? 'succeeded' : res.status === 'failed' ? 'failed' : 'pending',
-              output: res.outputs[n.id],
-            },
-          }))
-        );
-      }
     } catch (err: any) {
       showToast(`Run error: ${err.message || 'Failed'}`);
     } finally {
@@ -299,7 +303,7 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
         <div className="flex items-center space-x-3">
           <button
             onClick={handleSaveWorkflow}
-            disabled={isSaving}
+            disabled={isSaving || isRunning}
             className="flex items-center space-x-2 px-4 py-2 rounded-xl bg-[#161a23] hover:bg-[#1f2533] text-sm font-medium text-gray-200 border border-white/10 transition-colors disabled:opacity-50"
           >
             <Save size={16} className="text-[#ff6d5a]" />
@@ -308,7 +312,7 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
 
           <button
             onClick={handleRunWorkflow}
-            disabled={isRunning}
+            disabled={isRunning || isSaving || runResult?.status === 'pending' || runResult?.status === 'running'}
             className="flex items-center space-x-2 px-5 py-2 rounded-xl bg-[#ff6d5a] hover:bg-[#ff8575] text-sm font-bold text-white shadow-lg shadow-[#ff6d5a]/25 transition-all hover:scale-105 active:scale-95 disabled:opacity-50"
           >
             <PlayCircle size={18} />
@@ -373,9 +377,9 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
                 <div className="flex items-center space-x-2">
                   {runResult.status === 'succeeded' ? (
                     <CheckCircle2 className="text-emerald-400" size={20} />
-                  ) : (
+                  ) : runResult.status === 'failed' ? (
                     <XCircle className="text-rose-400" size={20} />
-                  )}
+                  ) : <Clock className="text-amber-400" size={20} />}
                   <span className="font-bold text-sm">
                     Execution {runResult.status?.toUpperCase() || 'FINISHED'}
                   </span>
@@ -404,6 +408,7 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
         {/* Right Node Inspector Drawer */}
         {selectedNode && (
           <NodeInspectorDrawer
+            key={selectedNode.id}
             node={selectedNode}
             onClose={() => setSelectedNode(null)}
             onUpdate={handleUpdateNode}

@@ -27,13 +27,13 @@ func NewWorkflowHandler(workflowService *services.WorkflowService, logger *zap.L
 }
 
 type createWorkflowRequest struct {
-	Name        string               `json:"name" validate:"required.max=255"`
+	Name        string               `json:"name" validate:"required,max=255"`
 	Description string               `json:"description" validate:"max=1000"`
 	Graph       models.WorkflowGraph `json:"graph"`
 }
 
 type workflowValidationErrorResponse struct {
-	Error  string                     `json:"error:"`
+	Error  string                     `json:"error"`
 	Errors []workflow.ValidationError `json:"errors"`
 }
 
@@ -50,6 +50,10 @@ func (h *WorkflowHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := validate.Struct(req); err != nil {
+		respondError(w, h.logger, http.StatusBadRequest, validationMessage(err))
+		return
+	}
 	wf, version, err := h.workflowService.CreateWorkflow(r.Context(), ownerID, req.Name, req.Description, req.Graph)
 	if err != nil {
 		var graphErr *workflow.GraphValidationError
@@ -113,7 +117,12 @@ func (h *WorkflowHandler) Get(w http.ResponseWriter, r *http.Request) {
 		respondError(w, h.logger, http.StatusInternalServerError, "unable to fetch workflow")
 		return
 	}
-	respondJSON(w, h.logger, http.StatusOK, wf)
+	version, err := h.workflowService.GetActiveVersion(r.Context(), id, ownerID)
+	if err != nil {
+		respondError(w, h.logger, http.StatusInternalServerError, "unable to fetch workflow version")
+		return
+	}
+	respondJSON(w, h.logger, http.StatusOK, map[string]any{"workflow": wf, "active_version": version})
 }
 
 func (h *WorkflowHandler) Run(w http.ResponseWriter, r *http.Request) {
@@ -139,6 +148,9 @@ func (h *WorkflowHandler) Run(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, models.ErrorWorkflowInactive):
 			respondError(w, h.logger, http.StatusConflict, "workflow is inactive")
 		default:
+			if respondDatabaseUnavailable(w, h.logger, err) {
+				return
+			}
 			h.logger.Error("run workflow failed", zap.Error(err))
 			respondError(w, h.logger, http.StatusInternalServerError, "unable to run workflow")
 		}
@@ -150,4 +162,46 @@ func (h *WorkflowHandler) Run(w http.ResponseWriter, r *http.Request) {
 func parseWorkfloeID(r *http.Request) (uuid.UUID, error) {
 	idParam := chi.URLParam(r, "id")
 	return uuid.Parse(idParam)
+}
+
+func (h *WorkflowHandler) Update(w http.ResponseWriter, r *http.Request) {
+	ownerID, ok := middleware.UserIDFromContext(r.Context())
+	if !ok {
+		respondError(w, h.logger, http.StatusUnauthorized, "unable to identify user")
+		return
+	}
+	id, err := parseWorkfloeID(r)
+	if err != nil {
+		respondError(w, h.logger, http.StatusBadRequest, "invalid workflow id")
+		return
+	}
+	var req createWorkflowRequest
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+	if err = json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondError(w, h.logger, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if err = validate.Struct(req); err != nil {
+		respondError(w, h.logger, http.StatusBadRequest, validationMessage(err))
+		return
+	}
+	version, err := h.workflowService.UpdateWorkflow(r.Context(), id, ownerID, req.Name, req.Description, req.Graph)
+	if err != nil {
+		var graphErr *workflow.GraphValidationError
+		if errors.As(err, &graphErr) {
+			respondJSON(w, h.logger, http.StatusBadRequest, workflowValidationErrorResponse{Error: "workflow graph is invalid", Errors: graphErr.Errors})
+			return
+		}
+		if errors.Is(err, models.ErrWorkflowNotFound) {
+			respondError(w, h.logger, http.StatusNotFound, "workflow not found")
+			return
+		}
+		if respondDatabaseUnavailable(w, h.logger, err) {
+			return
+		}
+		h.logger.Error("update workflow failed", zap.Error(err))
+		respondError(w, h.logger, http.StatusInternalServerError, "unable to save workflow")
+		return
+	}
+	respondJSON(w, h.logger, http.StatusOK, map[string]any{"active_version": version})
 }

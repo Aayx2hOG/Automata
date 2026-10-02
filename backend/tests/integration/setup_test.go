@@ -26,6 +26,8 @@ type testEnv struct {
 
 func setupTestEnv(t *testing.T) *testEnv {
 	t.Helper()
+	// These tests exercise API behavior; rate limiting has its own unit tests.
+	t.Setenv("TEST_DISABLE_RATE_LIMIT", "1")
 
 	_ = godotenv.Load("../../.env")
 
@@ -62,7 +64,7 @@ func setupTestEnv(t *testing.T) *testEnv {
 	engine := workflow.NewEngine(registry)
 	workflowService := services.NewWorkflowService(workflowRepo, workflowVersionRepo, workflowRunRepo, engine, logger)
 	scheduleRepo := repositories.NewScheduleRepository(pool)
-	sched := scheduler.New(scheduleRepo, workflowService, logger)
+	sched := scheduler.New(scheduleRepo, logger)
 
 	router := api.NewRouter(pool, logger, []string{"http://localhost:3000"}, authService, workflowService, scheduleRepo, sched, userRepo, jwtManager)
 

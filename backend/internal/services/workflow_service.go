@@ -5,6 +5,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"strconv"
 	"time"
 
@@ -51,12 +52,14 @@ func (s *WorkflowService) CreateWorkflow(ctx context.Context, ownerID uuid.UUID,
 		return nil, nil, &workflow.GraphValidationError{Errors: validation.Errors}
 	}
 
-	wf := &models.Workflow{OwnerID: ownerID, Name: name, Description: description, IsActive: true}
-	if err := s.workflows.Create(ctx, wf); err != nil {
-		return nil, nil, err
+	registry := workflow.NewRegistry(s.logger)
+	for _, n := range graph.Nodes {
+		if _, err := registry.Build(n.Type); err != nil {
+			return nil, nil, &workflow.GraphValidationError{Errors: []workflow.ValidationError{{NodeID: n.ID, Message: err.Error()}}}
+		}
 	}
-
-	version, err := s.versions.Create(ctx, wf.ID, graph)
+	wf := &models.Workflow{OwnerID: ownerID, Name: name, Description: description, IsActive: true}
+	version, err := s.workflows.CreateWithInitialVersion(ctx, wf, graph)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -182,7 +185,10 @@ func (s *WorkflowService) VerifyWebhook(ctx context.Context, id uuid.UUID, times
 	}
 	wf, err := s.workflows.GetById(ctx, id)
 	if err != nil {
-		return models.ErrorInvalidToken
+		if errors.Is(err, models.ErrWorkflowNotFound) {
+			return models.ErrorInvalidToken
+		}
+		return err
 	}
 	if wf.WebhookSecret == "" || !wf.IsActive {
 		return models.ErrorInvalidToken
@@ -194,4 +200,30 @@ func (s *WorkflowService) VerifyWebhook(ctx context.Context, id uuid.UUID, times
 		return models.ErrorInvalidToken
 	}
 	return nil
+}
+
+func (s *WorkflowService) GetActiveVersion(ctx context.Context, id, ownerID uuid.UUID) (*models.WorkflowVersion, error) {
+	if _, err := s.GetWorkflow(ctx, id, ownerID); err != nil {
+		return nil, err
+	}
+	return s.versions.GetLatestByWorkflow(ctx, id)
+}
+func (s *WorkflowService) UpdateWorkflow(ctx context.Context, id, ownerID uuid.UUID, name, description string, graph models.WorkflowGraph) (*models.WorkflowVersion, error) {
+	if _, err := s.GetWorkflow(ctx, id, ownerID); err != nil {
+		return nil, err
+	}
+	validation := workflow.ValidatorGraph(graph)
+	if !validation.Valid {
+		return nil, &workflow.GraphValidationError{Errors: validation.Errors}
+	}
+	registry := workflow.NewRegistry(s.logger)
+	for _, n := range graph.Nodes {
+		if _, err := registry.Build(n.Type); err != nil {
+			return nil, &workflow.GraphValidationError{Errors: []workflow.ValidationError{{NodeID: n.ID, Message: err.Error()}}}
+		}
+	}
+	return s.workflows.UpdateWithVersion(ctx, id, ownerID, name, description, graph)
+}
+func (s *WorkflowService) ListRuns(ctx context.Context, ownerID uuid.UUID, limit, offset int) ([]models.WorkflowRun, error) {
+	return s.runs.ListByOwner(ctx, ownerID, limit, offset)
 }

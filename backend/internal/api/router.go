@@ -37,7 +37,7 @@ func NewRouter(
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   allowedOrigins,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Accept", "Content-Type", "Authorization"},
+		AllowedHeaders:   []string{"Accept", "Content-Type", "Authorization", "X-Webhook-Timestamp", "X-Webhook-Signature"},
 		AllowCredentials: true,
 	}))
 
@@ -65,6 +65,7 @@ func NewRouter(
 		r.Post("/", workflowHandler.Create)
 		r.Get("/", workflowHandler.List)
 		r.Get("/{id}", workflowHandler.Get)
+		r.Put("/{id}", workflowHandler.Update)
 		r.Post("/{id}/run", workflowHandler.Run)
 	})
 
@@ -72,6 +73,7 @@ func NewRouter(
 	r.Route("/runs", func(r chi.Router) {
 		r.Use(appMiddleware.RequireAuth(jwtManager))
 		r.Get("/{id}", runHandler.Get)
+		r.Get("/", runHandler.List)
 	})
 
 	scheduleHandler := handlers.NewScheduleHandler(workflowService, scheduleRepo, sched, logger)

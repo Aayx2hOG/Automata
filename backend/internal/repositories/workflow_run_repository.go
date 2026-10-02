@@ -14,6 +14,7 @@ import (
 )
 
 type WorkflowRunRepository interface {
+	ListByOwner(ctx context.Context, ownerID uuid.UUID, limit, offset int) ([]models.WorkflowRun, error)
 	Enqueue(ctx context.Context, workflowID, versionID uuid.UUID, trigger models.TriggerType, seed map[string]interface{}) (*models.WorkflowRun, error)
 	Create(ctx context.Context, workflowID, workflowVersionID uuid.UUID, triggerType models.TriggerType) (*models.WorkflowRun, error)
 	MarkRunning(ctx context.Context, runID uuid.UUID) error
@@ -138,4 +139,32 @@ func (r *pgWorkflowRunRepository) Enqueue(ctx context.Context, workflowID, versi
 		return nil, err
 	}
 	return run, nil
+}
+
+func (r *pgWorkflowRunRepository) ListByOwner(ctx context.Context, ownerID uuid.UUID, limit, offset int) ([]models.WorkflowRun, error) {
+	rows, err := r.pool.Query(ctx, `SELECT r.id,r.workflow_id,r.workflow_version_id,r.status,r.trigger_type,r.outputs,r.error_message,r.started_at,r.finished_at,r.created_at
+ FROM workflow_runs r JOIN workflows w ON w.id=r.workflow_id WHERE w.owner_id=$1 ORDER BY r.created_at DESC,r.id DESC LIMIT $2 OFFSET $3`, ownerID, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	runs := []models.WorkflowRun{}
+	for rows.Next() {
+		var run models.WorkflowRun
+		var data []byte
+		var message *string
+		if err := rows.Scan(&run.ID, &run.WorkflowID, &run.WorkflowVersionID, &run.Status, &run.TriggerType, &data, &message, &run.StartedAt, &run.FinishedAt, &run.CreatedAt); err != nil {
+			return nil, err
+		}
+		if len(data) > 0 {
+			if err := json.Unmarshal(data, &run.Outputs); err != nil {
+				return nil, err
+			}
+		}
+		if message != nil {
+			run.ErrorMessage = *message
+		}
+		runs = append(runs, run)
+	}
+	return runs, rows.Err()
 }

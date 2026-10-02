@@ -2,12 +2,15 @@ services:
   postgres:
     image: postgres:16-alpine
     container_name: automata-postgres
+    restart: unless-stopped
+    env_file:
+      - ./.env
     environment:
-      POSTGRES_USER: automata
-      POSTGRES_PASSWORD: automata_password
-      POSTGRES_DB: automata
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:

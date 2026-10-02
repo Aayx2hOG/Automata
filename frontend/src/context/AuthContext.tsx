@@ -1,26 +1,7 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { User } from '../types';
 import { api, setTokens } from '../lib/api';
-
-interface AuthContextType {
-  user: User | null;
-  isAuthenticated: boolean;
-  isLoading: boolean;
-  login: (email: string, pass: string) => Promise<void>;
-  register: (email: string, pass: string) => Promise<void>;
-  logout: () => Promise<void>;
-  loginAsDemo: () => void;
-  error: string | null;
-  clearError: () => void;
-}
-
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-const DEMO_USER: User = {
-  id: '00000000-0000-0000-0000-000000000001',
-  email: 'demo@automata.io',
-  created_at: new Date().toISOString(),
-};
+import { AuthContext } from './auth-context';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -30,14 +11,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const initAuth = async () => {
       const token = localStorage.getItem('automata_access_token');
-      const isDemo = localStorage.getItem('automata_demo_mode');
-
-      if (isDemo === 'true') {
-        setUser(DEMO_USER);
-        setIsLoading(false);
-        return;
-      }
-
       if (token) {
         try {
           const userData = await api.auth.me();
@@ -50,7 +23,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsLoading(false);
     };
 
-    initAuth();
+    const expired = () => setUser(null);
+    window.addEventListener('automata:session-expired', expired);
+    void initAuth();
+    return () => window.removeEventListener('automata:session-expired', expired);
   }, []);
 
   const login = async (email: string, pass: string) => {
@@ -80,21 +56,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = async () => {
     try {
-      if (localStorage.getItem('automata_demo_mode') !== 'true') {
-        await api.auth.logout();
-      }
-    } catch (e) {
+      await api.auth.logout();
+    } catch {
       // ignore
     } finally {
       localStorage.removeItem('automata_demo_mode');
       setUser(null);
     }
-  };
-
-  const loginAsDemo = () => {
-    localStorage.setItem('automata_demo_mode', 'true');
-    setUser(DEMO_USER);
-    setError(null);
   };
 
   return (
@@ -106,7 +74,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         login,
         register,
         logout,
-        loginAsDemo,
         error,
         clearError: () => setError(null),
       }}
@@ -114,10 +81,4 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       {children}
     </AuthContext.Provider>
   );
-};
-
-export const useAuth = () => {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth must be used within an AuthProvider');
-  return ctx;
 };

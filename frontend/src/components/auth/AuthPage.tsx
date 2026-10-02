@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { Bot, Sparkles, Lock, Mail, ArrowRight, ShieldCheck, Zap } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
+import { Bot, Sparkles, Lock, Mail, ArrowRight, ShieldCheck } from 'lucide-react';
+import { useAuth } from '../../context/useAuth';
 
 export const AuthPage: React.FC = () => {
-  const { login, register, loginAsDemo, error, clearError } = useAuth();
+  const { login, register, error, clearError } = useAuth();
   const [isRegister, setIsRegister] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -120,20 +120,6 @@ export const AuthPage: React.FC = () => {
             </button>
           </form>
 
-          <div className="relative flex py-1 items-center">
-            <div className="flex-grow border-t border-white/10" />
-            <span className="flex-shrink mx-4 text-[10px] text-gray-500 uppercase tracking-wider font-bold">or</span>
-            <div className="flex-grow border-t border-white/10" />
-          </div>
-
-          {/* Quick Demo Mode button */}
-          <button
-            onClick={loginAsDemo}
-            className="w-full py-2.5 rounded-xl bg-[#0d1017] hover:bg-[#1a202c] border border-white/10 text-[#ff6d5a] font-bold text-xs transition-colors flex items-center justify-center space-x-2 group"
-          >
-            <Zap size={14} className="text-[#ff6d5a] group-hover:scale-125 transition-transform" />
-            <span>Launch Quick Demo Mode</span>
-          </button>
         </div>
 
         {/* Footer features */}

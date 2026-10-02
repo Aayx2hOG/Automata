@@ -2,6 +2,7 @@ export type RunStatus = 'pending' | 'running' | 'succeeded' | 'failed';
 export type TriggerType = 'manual' | 'webhook' | 'cron' | 'interval' | 'api';
 
 export interface GraphNode {
+  label?: string;
   id: string;
   type: string;
   config: Record<string, any>;
@@ -20,6 +21,7 @@ export interface WorkflowGraph {
 }
 
 export interface Workflow {
+  webhook_secret: string;
   id: string;
   owner_id: string;
   name: string;

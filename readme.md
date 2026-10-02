@@ -15,7 +15,7 @@ This project is under active development. Current progress by phase:
 | 3 | Core nodes (HTTP, Delay, Logger, Condition, Webhook, JSON Parser, Manual) | Complete |
 | 4 | Durable execution: PostgreSQL outbox, concurrent consumers, retries | Complete |
 | 5 | Scheduler & Triggers: cron scheduler, webhook triggers | Complete |
-| 6 | Frontend: visual workflow editor | Complete |
+| 6 | Frontend: persistent visual editor, execution history, schedules, signed webhooks | Core flow implemented |
 | 7 | Integrations: GitHub, Discord, Slack, SMTP | Not started |
 | 8 | Production readiness: execution security implemented; metrics, tracing, secrets management pending | In progress |
 
@@ -56,11 +56,18 @@ New node types are added by implementing this interface and registering them in 
 
 Manual, webhook, and cron triggers atomically persist a workflow run and a PostgreSQL outbox entry. Webhook payloads are stored with the job, and each run uses the workflow version selected when it was created. Scheduled occurrences also advance their schedule in the same transaction, with a unique occurrence key preventing duplicate run records.
 
-Each server runs one outbox consumer through the scheduler, even when no cron schedules exist. Consumers use `FOR UPDATE SKIP LOCKED` to coordinate across instances. Workflow errors receive up to two retries with 2-second and 4-second delays, within a shared 60-second execution timeout. Shutdown or connection loss rolls back unfinished consumption so it can be retried.
+Each server starts a dispatcher and bounded worker pool independently of cron schedules. The local queue contains durable run IDs; workers use short `FOR UPDATE SKIP LOCKED` transactions to claim renewable leases, then release the database connection before executing. Defaults are four workers and 64 queued IDs (`WORKER_CONCURRENCY`, `WORKER_QUEUE_CAPACITY`). Workflow errors receive up to two retries with 2-second and 4-second delays, within a shared 60-second execution timeout.
 
-Execution is **at least once**: external side effects may repeat after a retry or crash, so downstream actions should support idempotency. The consumer holds a database connection and transaction during execution; runs remain visibly pending until the terminal result commits. Keep database idle-in-transaction timeouts longer than the execution timeout. Missed cron intervals are skipped rather than replayed.
+Runs become visibly `running` when claimed. Leases last 30 seconds and renew every 10 seconds; lease loss cancels execution, and a stale worker cannot acknowledge another worker's job. Shutdown releases unfinished jobs, while crashes leave them reclaimable after lease expiry. Execution remains **at least once**: external side effects may repeat, so downstream actions should support idempotency. Missed cron intervals are skipped rather than replayed.
+
+Workflow creation and its initial version commit atomically. Persisted webhook payloads become the webhook trigger's output. Graph joins wait for every incoming branch to complete or be skipped, then execute once if at least one incoming edge is active; entirely inactive branches propagate their skipped state.
 
 See [durable execution details](backend/docs/scheduled-execution.md) for transaction semantics and operational limits.
+
+Docker Compose includes daily PostgreSQL backups and continuous WAL archiving.
+Local backups use a separate Docker volume; production requires configuring
+off-server storage. See [database recovery](backend/docs/database-recovery.md)
+for setup, monitoring, restore instructions and outage retry behavior.
 
 ### Execution security
 
@@ -80,14 +87,14 @@ See [execution security details](backend/docs/execution-security.md) for webhook
 
 ### Setup
 
-Clone the repository and move into the backend module:
+Clone the repository and move into the project:
 
 ```bash
 git clone <repository-url>
-cd automata/backend
+cd automata
 ```
 
-Copy the environment template and fill in a real JWT secret:
+Create the shared local environment file:
 
 ```bash
 cp .env.example .env
@@ -101,26 +108,25 @@ openssl rand -base64 32
 
 Paste the output into `.env` as the value for `JWT_SECRET`.
 
+### Frontend development
+
+See [frontend setup](frontend/README.md) for the reusable Docker development database, API and frontend startup commands, and browser tests.
+
 ### Database
 
-Start PostgreSQL (via the project's `docker-compose.yml` at the repository root, or your own instance):
+Start PostgreSQL with the shared root environment:
 
 ```bash
-docker compose up -d
+docker compose -f compose.dev.yml up -d --wait postgres
+docker compose -f compose.dev.yml run --rm migrate
 ```
 
-Run migrations:
-
-```bash
-export $(grep -v '^#' .env | xargs)
-migrate -path internal/database/migrations -database "$DATABASE_URL" up
-```
-
-Before starting the updated server, apply migrations through `000010_execution_security`. Migration `000009_schedule_outbox` adds durable dispatch and schedule occurrence identity; `000010_execution_security` adds persisted webhook payloads and generates independent webhook secrets for existing workflows.
+Stop older server instances, apply migrations through `000011_outbox_leases`, then start the updated server. Older consumers do not honor leases and must not run alongside the new workers. Migration `000009_schedule_outbox` adds durable dispatch and schedule occurrence identity; `000010_execution_security` adds persisted webhook payloads and independent webhook secrets; `000011_outbox_leases` adds renewable execution ownership.
 
 ### Running the server
 
 ```bash
+cd backend
 go run ./cmd/server
 ```
 
@@ -154,8 +160,10 @@ curl http://localhost:8080/healthz
 | POST | `/workflows` | Create a new workflow |
 | GET | `/workflows` | List workflows owned by the authenticated user |
 | GET | `/workflows/{id}` | Get workflow details and active version |
+| PUT | `/workflows/{id}` | Save metadata and publish a new graph version atomically |
 | POST | `/workflows/{id}/run` | Manually trigger a workflow run |
-| GET | `/runs/{id}` | Get workflow execution status and logs |
+| GET | `/runs/{id}` | Get workflow execution status and outputs |
+| GET | `/runs?limit=50&offset=0` | List the authenticated owner's runs, newest first (maximum limit 100) |
 
 ### Schedules (Cron Triggers)
 

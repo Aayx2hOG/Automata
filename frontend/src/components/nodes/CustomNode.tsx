@@ -27,7 +27,7 @@ const nodeMeta: Record<
   string,
   { title: string; color: string; bg: string; border: string; icon: React.FC<any>; isTrigger?: boolean }
 > = {
-  webhook: {
+  webhook_trigger: {
     title: 'Webhook Trigger',
     color: 'text-[#ff6d5a]',
     bg: 'bg-[#ff6d5a]/10',
@@ -51,7 +51,7 @@ const nodeMeta: Record<
     icon: Clock,
     isTrigger: true,
   },
-  manual: {
+  manual_trigger: {
     title: 'Manual Trigger',
     color: 'text-[#ff6d5a]',
     bg: 'bg-[#ff6d5a]/10',
@@ -120,7 +120,7 @@ export const CustomNode = memo(({ data, selected }: NodeProps) => {
     if (nodeType === 'cron' || nodeType === 'schedule') {
       return `Schedule: ${config.cron || '*/5 * * * *'}`;
     }
-    if (nodeType === 'webhook') {
+    if (nodeType === 'webhook_trigger') {
       return `POST /webhook/{id}`;
     }
     if (nodeType === 'condition') {

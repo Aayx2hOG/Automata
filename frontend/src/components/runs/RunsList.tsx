@@ -8,7 +8,8 @@ interface RunsListProps {
 }
 
 export const RunsList: React.FC<RunsListProps> = ({ runs, onRefresh }) => {
-  const [selectedRun, setSelectedRun] = useState<WorkflowRun | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selectedRun = runs.find(run => run.id === selectedId);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -52,7 +53,7 @@ export const RunsList: React.FC<RunsListProps> = ({ runs, onRefresh }) => {
             <PlayCircle className="text-[#ff6d5a]" size={22} />
             <span>Execution History</span>
           </h2>
-          <p className="text-xs text-gray-400 mt-1">Real-time log of all triggered workflow runs and outputs.</p>
+          <p className="text-xs text-gray-400 mt-1">Latest 50 workflow runs and outputs, refreshed automatically.</p>
         </div>
 
         <button
@@ -102,7 +103,7 @@ export const RunsList: React.FC<RunsListProps> = ({ runs, onRefresh }) => {
                     <td className="px-5 py-4 text-gray-400">{new Date(run.created_at).toLocaleString()}</td>
                     <td className="px-5 py-4 text-right">
                       <button
-                        onClick={() => setSelectedRun(run)}
+                        onClick={() => setSelectedId(run.id)}
                         className="inline-flex items-center space-x-1 text-[#ff6d5a] hover:text-[#ff8575] font-sans font-bold"
                       >
                         <span>View Outputs</span>
@@ -130,7 +131,7 @@ export const RunsList: React.FC<RunsListProps> = ({ runs, onRefresh }) => {
                 <p className="text-xs text-gray-400 font-mono mt-0.5">ID: {selectedRun.id}</p>
               </div>
               <button
-                onClick={() => setSelectedRun(null)}
+                onClick={() => setSelectedId(null)}
                 className="text-xs px-3 py-1.5 rounded-lg bg-white/10 text-white hover:bg-white/20 font-semibold"
               >
                 Close

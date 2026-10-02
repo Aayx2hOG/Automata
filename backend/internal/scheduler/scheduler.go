@@ -7,26 +7,23 @@ import (
 
 	"github.com/Aayx2hOG/automata/internal/models"
 	"github.com/Aayx2hOG/automata/internal/repositories"
-	"github.com/Aayx2hOG/automata/internal/services"
 	"github.com/robfig/cron/v3"
 	"go.uber.org/zap"
 )
 
 type Scheduler struct {
-	schedules        repositories.ScheduleRepository
-	workflowServices *services.WorkflowService
-	parser           cron.Parser
-	interval         time.Duration
-	logger           *zap.Logger
+	schedules repositories.ScheduleRepository
+	parser    cron.Parser
+	interval  time.Duration
+	logger    *zap.Logger
 }
 
-func New(schedules repositories.ScheduleRepository, workflowService *services.WorkflowService, logger *zap.Logger) *Scheduler {
+func New(schedules repositories.ScheduleRepository, logger *zap.Logger) *Scheduler {
 	return &Scheduler{
-		schedules:        schedules,
-		workflowServices: workflowService,
-		parser:           cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow),
-		interval:         30 * time.Second,
-		logger:           logger,
+		schedules: schedules,
+		parser:    cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow),
+		interval:  30 * time.Second,
+		logger:    logger,
 	}
 }
 
@@ -39,12 +36,6 @@ func (s *Scheduler) ParseNext(cronExpr string, after time.Time) (time.Time, erro
 }
 
 func (s *Scheduler) Run(ctx context.Context) {
-	workerDone := make(chan struct{})
-	go func() {
-		defer close(workerDone)
-		s.processRuns(ctx)
-	}()
-	defer func() { <-workerDone }()
 	s.tick(ctx)
 	ticker := time.NewTicker(s.interval)
 	defer ticker.Stop()
@@ -88,24 +79,5 @@ func (s *Scheduler) trigger(ctx context.Context, schedule models.Schedule, now t
 			zap.String("workflow_id", schedule.WorkflowID.String()),
 			zap.Error(err),
 		)
-	}
-}
-
-func (s *Scheduler) processRuns(ctx context.Context) {
-	for ctx.Err() == nil {
-		processed, err := s.schedules.ProcessNextRun(ctx, s.workflowServices.ExecuteDurableGraph)
-		if err != nil && ctx.Err() == nil {
-			s.logger.Error("execution failed to persist", zap.Error(err))
-		}
-		if processed && err == nil {
-			continue
-		}
-		timer := time.NewTimer(time.Second)
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			return
-		case <-timer.C:
-		}
 	}
 }

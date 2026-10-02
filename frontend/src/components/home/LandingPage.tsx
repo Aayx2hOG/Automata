@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import {
-  Sparkles,
   ArrowRight,
   Webhook,
   Clock,
@@ -28,7 +27,6 @@ interface LandingPageProps {
 export const LandingPage: React.FC<LandingPageProps> = ({
   workflows,
   onLaunchStudio,
-  onOpenWorkflow,
   onNavigateTab,
 }) => {
   const [activeInteractiveNode, setActiveInteractiveNode] = useState<'webhook' | 'http' | 'condition' | 'logger'>('webhook');

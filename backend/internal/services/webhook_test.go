@@ -5,6 +5,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"github.com/Aayx2hOG/automata/internal/models"
 	"github.com/Aayx2hOG/automata/internal/repositories"
 	"github.com/google/uuid"
@@ -15,10 +16,27 @@ import (
 
 type webhookRepo struct {
 	repositories.WorkflowRepository
-	wf models.Workflow
+	wf  models.Workflow
+	err error
 }
 
-func (r webhookRepo) GetById(context.Context, uuid.UUID) (*models.Workflow, error) { return &r.wf, nil }
+func (r webhookRepo) GetById(context.Context, uuid.UUID) (*models.Workflow, error) {
+	return &r.wf, r.err
+}
+
+func TestWebhookDatabaseFailureIsNotAuthenticationFailure(t *testing.T) {
+	outage := errors.New("database connection failed")
+	for _, tc := range []struct{ repositoryError, want error }{
+		{outage, outage},
+		{models.ErrWorkflowNotFound, models.ErrorInvalidToken},
+	} {
+		s := &WorkflowService{workflows: webhookRepo{err: tc.repositoryError}}
+		err := s.VerifyWebhook(context.Background(), uuid.New(), strconv.FormatInt(time.Now().Unix(), 10), "00", nil)
+		if !errors.Is(err, tc.want) {
+			t.Fatalf("verification error = %v, want %v", err, tc.want)
+		}
+	}
+}
 func TestWebhookSignature(t *testing.T) {
 	s := &WorkflowService{workflows: webhookRepo{wf: models.Workflow{WebhookSecret: "test-secret", IsActive: true}}}
 	body := []byte(`{"hello":"world"}`)

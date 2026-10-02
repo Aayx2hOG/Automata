@@ -7,6 +7,14 @@ on:
     branches: [main]
 
 jobs:
+  database-recovery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore full backup and replay WAL
+        run: sh ops/postgres/test-recovery.sh
+
   backend:
     runs-on: ubuntu-latest
 
@@ -34,7 +42,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.24"
+          go-version-file: backend/go.mod
 
       - name: Download dependencies
         run: go mod download
@@ -56,5 +64,46 @@ jobs:
         run: go test ./... -race -cover
         env:
           DATABASE_URL: postgres://automata:automata@localhost:5432/automata?sslmode=disable
+          TEST_DATABASE_URL: postgres://automata:automata@localhost:5432/automata?sslmode=disable
           JWT_SECRET: ci-test-secret-do-not-use-in-production-ok
           ENV: development
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Frontend install, lint and build
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run lint
+          npm run build
+          npx playwright install --with-deps chromium
+
+      - name: Browser workflow regression
+        run: |
+          go build -o /tmp/automata-e2e ./cmd/server
+          /tmp/automata-e2e > /tmp/automata-e2e.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid"' EXIT
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://localhost:8080/healthz; then break; fi
+            sleep 1
+          done
+          cd ../frontend
+          npm run test:e2e
+        env:
+          DATABASE_URL: postgres://automata:automata@localhost:5432/automata?sslmode=disable
+          JWT_SECRET: ci-test-secret-do-not-use-in-production-ok
+          ENV: development
+          TEST_DISABLE_RATE_LIMIT: '1'
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: browser-test-results
+          path: |
+            frontend/test-results
+            /tmp/automata-e2e.log

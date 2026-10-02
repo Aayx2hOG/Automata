@@ -1,6 +1,6 @@
 import { AuthTokens, Schedule, User, Workflow, WorkflowGraph, WorkflowRun, WorkflowVersion } from '../types';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
+export const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
 
 class ApiError extends Error {
   status: number;
@@ -31,6 +31,8 @@ export function setTokens(tokens: AuthTokens | null) {
   }
 }
 
+let refreshing: Promise<AuthTokens> | null = null;
+
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const token = getStoredToken();
   const headers: Record<string, string> = {
@@ -53,26 +55,31 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
   if (!response.ok) {
     // If 401 Unauthorized and we have a refresh token, attempt refresh
-    if (response.status === 401 && getStoredRefreshToken() && !endpoint.includes('/auth/')) {
+    if (response.status === 401 && getStoredRefreshToken() && !endpoint.includes('/auth/') && !endpoint.startsWith('/webhook/')) {
+      let refreshed: AuthTokens;
       try {
-        const refreshed = await api.auth.refresh();
-        setTokens(refreshed);
-        // Retry original request
-        headers['Authorization'] = `Bearer ${refreshed.access_token}`;
-        const retryRes = await fetch(`${API_BASE}${endpoint}`, { ...options, headers });
-        const retryData = retryRes.headers.get('content-type')?.includes('application/json')
-          ? await retryRes.json()
-          : await retryRes.text();
-        if (!retryRes.ok) {
-          throw new ApiError(retryData?.error || retryData?.message || 'Request failed', retryRes.status, retryData);
+        // A slower request may receive its 401 after another request already rotated tokens.
+        const currentToken = getStoredToken();
+        if (currentToken && currentToken !== token) {
+          refreshed = {access_token: currentToken, refresh_token: getStoredRefreshToken()!};
+        } else {
+        if (!refreshing) refreshing = api.auth.refresh().then(tokens => {setTokens(tokens); return tokens;}).finally(() => {refreshing = null;});
+        refreshed = await refreshing;
         }
-        return retryData as T;
       } catch (err) {
-        setTokens(null);
-        window.location.reload();
+        if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+          setTokens(null);
+          window.dispatchEvent(new Event('automata:session-expired'));
+        }
+        throw err;
       }
+      headers.Authorization = `Bearer ${refreshed.access_token}`;
+      const retry = await fetch(`${API_BASE}${endpoint}`, {...options, headers});
+      const result = retry.status === 204 ? null : await retry.json();
+      if (!retry.ok) throw new ApiError(result?.error || 'Request failed', retry.status, result);
+      return result as T;
     }
-    const errMsg = typeof data === 'object' ? data?.error || data?.message || 'API error' : data;
+    const errMsg = typeof data === 'object' ? (data?.errors?.map((e: {node_id?: string; message: string}) => `${e.node_id ? e.node_id + ': ' : ''}${e.message}`).join('; ') || data?.error || data?.message || 'API error') : data;
     throw new ApiError(errMsg, response.status, data);
   }
 
@@ -81,12 +88,12 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
 export const api = {
   auth: {
-    register: async (email: string, password: string): Promise<{ user: User; tokens: AuthTokens }> => {
-      const data = await request<{ user: User; tokens: AuthTokens }>('/auth/register', {
+    register: async (email: string, password: string): Promise<AuthTokens & { user: User }> => {
+      const data = await request<AuthTokens & { user: User }>('/auth/register', {
         method: 'POST',
         body: JSON.stringify({ email, password }),
       });
-      if (data.tokens) setTokens(data.tokens);
+      setTokens(data);
       return data;
     },
     login: async (email: string, password: string): Promise<AuthTokens> => {
@@ -137,6 +144,7 @@ export const api = {
         body: JSON.stringify({ name, description, graph }),
       });
     },
+    update: async (id: string, name: string, description: string, graph: WorkflowGraph): Promise<{active_version: WorkflowVersion}> => request(`/workflows/${id}`, {method: 'PUT', body: JSON.stringify({name, description, graph})}),
     run: async (id: string): Promise<WorkflowRun> => {
       return request<WorkflowRun>(`/workflows/${id}/run`, {
         method: 'POST',
@@ -145,6 +153,10 @@ export const api = {
   },
 
   runs: {
+    list: async (offset = 0): Promise<WorkflowRun[]> => {
+      const data = await request<{runs: WorkflowRun[]}>(`/runs?limit=50&offset=${offset}`);
+      return data.runs;
+    },
     get: async (id: string): Promise<WorkflowRun> => {
       return request<WorkflowRun>(`/runs/${id}`);
     },
@@ -169,11 +181,13 @@ export const api = {
   },
 
   webhook: {
-    trigger: async (workflowId: string, payload: any = {}): Promise<any> => {
-      return request(`/webhook/${workflowId}`, {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
+    trigger: async (workflow: Workflow, body: string): Promise<{run_id: string; status: string}> => {
+      const timestamp = Math.floor(Date.now() / 1000).toString();
+      const encoder = new TextEncoder();
+      const key = await crypto.subtle.importKey('raw', encoder.encode(workflow.webhook_secret), {name: 'HMAC', hash: 'SHA-256'}, false, ['sign']);
+      const digest = await crypto.subtle.sign('HMAC', key, encoder.encode(`${timestamp}.${body}`));
+      const signature = Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('');
+      return request(`/webhook/${workflow.id}`, {method: 'POST', body, headers: {'X-Webhook-Timestamp': timestamp, 'X-Webhook-Signature': signature}});
     },
   },
 };

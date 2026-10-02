@@ -14,6 +14,12 @@ type Config struct {
 	HTTP     HTTPConfig     `mapstructure:"http"`
 	Database DatabaseConfig `mapstructure:"database"`
 	Auth     AuthConfig     `mapstructure:"auth"`
+	Worker   WorkerConfig   `mapstructure:"worker"`
+}
+
+type WorkerConfig struct {
+	Concurrency   int `mapstructure:"concurrency"`
+	QueueCapacity int `mapstructure:"queue_capacity"`
 }
 
 type HTTPConfig struct {
@@ -28,8 +34,8 @@ type DatabaseConfig struct {
 }
 
 type AuthConfig struct {
-	JWTSecret          string        `mapstructure:"jwt_secret"`
-	CredentialsKey     string        `mapstructure:"credentials_key"`
+	JWTSecret       string        `mapstructure:"jwt_secret"`
+	CredentialsKey  string        `mapstructure:"credentials_key"`
 	AccessTokenTTL  time.Duration `mapstructure:"access_token_ttl"`
 	RefreshTokenTTL time.Duration `mapstructure:"refresh_token_ttl"`
 }
@@ -46,8 +52,8 @@ func (c HTTPConfig) AllowedOriginsList() []string {
 }
 
 func Load() (*Config, error) {
-	// Load .env file from current directory or parent directory
-	_ = godotenv.Overload(".env", "../.env")
+	// Load the shared repository environment, with backend-local compatibility.
+	_ = godotenv.Overload("../.env", ".env")
 
 	v := viper.New()
 	v.SetConfigName("config")
@@ -59,6 +65,8 @@ func Load() (*Config, error) {
 	v.SetDefault("http.port", 8080)
 	v.SetDefault("http.shutdown_timeout", "10s")
 	v.SetDefault("database.max_conns", 10)
+	v.SetDefault("worker.concurrency", 4)
+	v.SetDefault("worker.queue_capacity", 64)
 	v.SetDefault("auth.access_token_ttl", "15m")
 	v.SetDefault("auth.refresh_token_ttl", "168h")
 
@@ -88,6 +96,9 @@ func Load() (*Config, error) {
 
 	if cfg.Database.URL == "" {
 		return nil, fmt.Errorf("DATABASE_URL is required")
+	}
+	if cfg.Worker.Concurrency < 1 || cfg.Worker.QueueCapacity < 1 {
+		return nil, fmt.Errorf("worker concurrency and queue capacity must be positive")
 	}
 	if len(cfg.Auth.JWTSecret) < 32 {
 		return nil, fmt.Errorf("JWT_SECRET must be at least 32 characters")
