@@ -1,19 +1,30 @@
-import React, { useState } from 'react';
-import { X, Trash2, Sliders } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { X, Trash2, Sliders, Save } from 'lucide-react';
 import { CustomNodeData } from './CustomNode';
 
 interface NodeInspectorDrawerProps {
-  node: { id: string; type: string; data: CustomNodeData } | null;
+  node: { id: string; type: string; data: CustomNodeData };
   onClose: () => void;
   onUpdate: (id: string, updatedData: Partial<CustomNodeData>) => void;
   onDelete: (id: string) => void;
+  onSaveChanges: () => Promise<void>;
+  onDiscardChanges: (id: string, data: CustomNodeData) => void;
 }
 
-export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({ node, onClose, onUpdate, onDelete }) => {
+export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
+  node,
+  onClose,
+  onUpdate,
+  onDelete,
+  onSaveChanges,
+  onDiscardChanges,
+}) => {
   const [label, setLabel] = useState(node?.data.label || '');
   const [config, setConfig] = useState<Record<string, any>>(node?.data.config || {});
-
-  if (!node) return null;
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const committedData = useRef<CustomNodeData>(node.data);
 
   const nodeType = node.data.type || 'http_request';
 
@@ -21,11 +32,34 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({ node, 
     const newConfig = { ...config, [key]: value };
     setConfig(newConfig);
     onUpdate(node.id, { config: newConfig });
+    setHasUnsavedChanges(true);
   };
 
   const handleLabelChange = (newLabel: string) => {
     setLabel(newLabel);
     onUpdate(node.id, { label: newLabel });
+    setHasUnsavedChanges(true);
+  };
+
+  const handleSaveChanges = async () => {
+    setIsSaving(true);
+    setSaveError(null);
+    try {
+      await onSaveChanges();
+      setHasUnsavedChanges(false);
+      committedData.current = { ...committedData.current, label, config };
+    } catch (err) {
+      setSaveError((err as Error).message || 'Unable to save changes.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleClose = () => {
+    if (hasUnsavedChanges && committedData.current) {
+      onDiscardChanges(node.id, committedData.current);
+    }
+    onClose();
   };
 
   return (
@@ -45,7 +79,7 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({ node, 
             <Trash2 size={18} />
           </button>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="p-1.5 rounded-lg text-gray-400 hover:bg-white/10 hover:text-white transition-colors"
           >
             <X size={18} />
@@ -240,6 +274,21 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({ node, 
           )}
         </div>
       </div>
+
+      {hasUnsavedChanges && (
+        <div className="border-t border-white/10 bg-[#10141d] p-4 space-y-3">
+          {saveError && <p role="alert" className="text-xs text-rose-300">{saveError}</p>}
+          <p className="text-xs text-amber-300">You have unsaved inspector changes.</p>
+          <button
+            onClick={handleSaveChanges}
+            disabled={isSaving}
+            className="w-full inline-flex items-center justify-center space-x-2 px-4 py-2.5 rounded-xl bg-[#ff6d5a] hover:bg-[#ff8575] text-white text-sm font-bold shadow-lg shadow-[#ff6d5a]/20 transition-all disabled:cursor-wait disabled:opacity-60"
+          >
+            <Save size={16} />
+            <span>{isSaving ? 'Saving Changes...' : 'Save Changes'}</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 };

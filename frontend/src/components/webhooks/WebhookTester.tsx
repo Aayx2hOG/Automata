@@ -69,20 +69,26 @@ curl ${quote(getWebhookUrl(workflowId))} -H 'Content-Type: application/json' -H 
         <div className="p-6 rounded-2xl bg-[#161a23] border border-white/10 shadow-xl space-y-6">
           <div>
             <label className="text-xs font-bold text-gray-300 uppercase tracking-wider">Select Workflow</label>
-            <select
-              value={selectedWorkflow?.id || ''}
-              onChange={(e) => {
-                const wf = workflows.find((w) => w.id === e.target.value);
-                if (wf) setSelectedId(wf.id);
-              }}
-              className="mt-1 w-full bg-[#0d1017] border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#ff6d5a]"
-            >
-              {workflows.map((wf) => (
-                <option key={wf.id} value={wf.id}>
-                  {wf.name}
-                </option>
-              ))}
-            </select>
+            {workflows.length === 0 ? (
+              <div className="mt-1 rounded-xl border border-dashed border-white/15 bg-[#0d1017] px-4 py-3 text-sm text-gray-500">
+                No workflows created yet. Create a workflow to test its webhook.
+              </div>
+            ) : (
+              <select
+                value={selectedWorkflow?.id || ''}
+                onChange={(e) => {
+                  const wf = workflows.find((w) => w.id === e.target.value);
+                  if (wf) setSelectedId(wf.id);
+                }}
+                className="mt-1 w-full bg-[#0d1017] border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#ff6d5a]"
+              >
+                {workflows.map((wf) => (
+                  <option key={wf.id} value={wf.id}>
+                    {wf.name}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
 
           {selectedWorkflow && (

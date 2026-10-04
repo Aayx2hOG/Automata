@@ -88,10 +88,10 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
 export const api = {
   auth: {
-    register: async (email: string, password: string): Promise<AuthTokens & { user: User }> => {
+    register: async (username: string, email: string, password: string): Promise<AuthTokens & { user: User }> => {
       const data = await request<AuthTokens & { user: User }>('/auth/register', {
         method: 'POST',
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ username, email, password }),
       });
       setTokens(data);
       return data;

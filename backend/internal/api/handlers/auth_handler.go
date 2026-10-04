@@ -26,6 +26,7 @@ func NewAuthHandler(authService *services.AuthService, logger *zap.Logger) *Auth
 }
 
 type registerRequest struct {
+	Username string `json:"username" validate:"required,min=3,max=30"`
 	Email    string `json:"email" validate:"required,email,max=255"`
 	Password string `json:"password" validate:"required,min=8,max=72"`
 }
@@ -58,7 +59,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := h.authService.Register(r.Context(), req.Email, req.Password)
+	result, err := h.authService.Register(r.Context(), req.Username, req.Email, req.Password)
 	if err != nil {
 		handleAuthErrors(w, h.logger, err)
 		return

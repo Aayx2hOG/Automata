@@ -44,10 +44,12 @@ func doJSON(t *testing.T, router http.Handler, method, path string, body interfa
 func TestAuthFlow_FullLifecycle(t *testing.T) {
 	env := setupTestEnv(t)
 
+	username := fmt.Sprintf("integration-user-%d", time.Now().UnixNano())
 	email := fmt.Sprintf("integration-test-%d@example.com", time.Now().UnixNano())
 	password := "correct-horse-battery-staple"
 
 	rec, body := doJSON(t, env.router, http.MethodPost, "/auth/register", map[string]string{
+		"username": username,
 		"email":    email,
 		"password": password,
 	}, "")
@@ -63,6 +65,7 @@ func TestAuthFlow_FullLifecycle(t *testing.T) {
 	}
 
 	rec, _ = doJSON(t, env.router, http.MethodPost, "/auth/register", map[string]string{
+		"username": username,
 		"email":    email,
 		"password": password,
 	}, "")

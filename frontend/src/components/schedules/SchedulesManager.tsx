@@ -55,17 +55,23 @@ export const SchedulesManager: React.FC<SchedulesManagerProps> = ({
         <form onSubmit={handleCreate} className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
           <div>
             <label className="text-xs font-bold text-gray-300 uppercase tracking-wider">Select Workflow</label>
-            <select
-              value={selectedWorkflowId}
-              onChange={(e) => setSelectedWorkflowId(e.target.value)}
-              className="mt-1 w-full bg-[#0d1017] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#ff6d5a]"
-            >
-              {workflows.map((wf) => (
-                <option key={wf.id} value={wf.id}>
-                  {wf.name}
-                </option>
-              ))}
-            </select>
+            {workflows.length === 0 ? (
+              <div className="mt-1 rounded-xl border border-dashed border-white/15 bg-[#0d1017] px-3 py-3 text-sm text-gray-500">
+                No workflows created yet. Create a workflow before adding a schedule.
+              </div>
+            ) : (
+              <select
+                value={selectedWorkflowId}
+                onChange={(e) => setSelectedWorkflowId(e.target.value)}
+                className="mt-1 w-full bg-[#0d1017] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#ff6d5a]"
+              >
+                {workflows.map((wf) => (
+                  <option key={wf.id} value={wf.id}>
+                    {wf.name}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
 
           <div>

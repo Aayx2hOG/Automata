@@ -43,7 +43,10 @@ const Workspace: React.FC = () => {
 
   const loadData = async () => {
     try {setRuns(await api.runs.list()); setError(null);}
-    catch (err) {setError((err as Error).message);}
+    catch (err) {
+      setError((err as Error).message);
+      throw err;
+    }
   };
   const handleOpenWorkflowCanvas = async (workflow: Workflow) => {
     setLoading(true); setError(null);

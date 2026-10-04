@@ -52,7 +52,7 @@ func outboxFixture(t *testing.T) (*pgScheduleRepository, models.Schedule) {
 		}
 	}
 	var owner, workflowID uuid.UUID
-	if err = pool.QueryRow(ctx, `INSERT INTO users(email,password_hash) VALUES ('test@example.com','test') RETURNING id`).Scan(&owner); err != nil {
+	if err = pool.QueryRow(ctx, `INSERT INTO users(username,email,password_hash) VALUES ('schedule-test','test@example.com','test') RETURNING id`).Scan(&owner); err != nil {
 		t.Fatal(err)
 	}
 	if err = pool.QueryRow(ctx, `INSERT INTO workflows(owner_id,name) VALUES ($1,'test') RETURNING id`, owner).Scan(&workflowID); err != nil {

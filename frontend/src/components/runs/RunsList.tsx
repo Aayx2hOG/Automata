@@ -1,15 +1,42 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { PlayCircle, CheckCircle2, XCircle, Clock, AlertCircle, RefreshCw, Code2, ChevronRight } from 'lucide-react';
 import { WorkflowRun } from '../../types';
 
 interface RunsListProps {
   runs: WorkflowRun[];
-  onRefresh: () => void;
+  onRefresh: () => Promise<void>;
 }
 
 export const RunsList: React.FC<RunsListProps> = ({ runs, onRefresh }) => {
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
+  const feedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const selectedRun = runs.find(run => run.id === selectedId);
+
+  useEffect(() => () => {
+    if (feedbackTimer.current) clearTimeout(feedbackTimer.current);
+  }, []);
+
+  const handleRefresh = async () => {
+    if (isRefreshing) return;
+
+    setIsRefreshing(true);
+    setRefreshMessage(null);
+    if (feedbackTimer.current) clearTimeout(feedbackTimer.current);
+    try {
+      await Promise.all([
+        onRefresh(),
+        new Promise(resolve => setTimeout(resolve, 350)),
+      ]);
+      setRefreshMessage('Logs updated just now');
+    } catch {
+      setRefreshMessage('Unable to refresh logs');
+    } finally {
+      setIsRefreshing(false);
+      feedbackTimer.current = setTimeout(() => setRefreshMessage(null), 3000);
+    }
+  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -57,12 +84,17 @@ export const RunsList: React.FC<RunsListProps> = ({ runs, onRefresh }) => {
         </div>
 
         <button
-          onClick={onRefresh}
-          className="flex items-center space-x-2 px-3.5 py-2 rounded-xl bg-[#161a23] border border-white/10 hover:bg-[#1a202c] text-xs font-semibold text-gray-300 transition-colors"
+          onClick={handleRefresh}
+          disabled={isRefreshing}
+          aria-busy={isRefreshing}
+          className="flex items-center space-x-2 px-3.5 py-2 rounded-xl bg-[#161a23] border border-white/10 hover:bg-[#1a202c] text-xs font-semibold text-gray-300 transition-all hover:border-white/20 active:scale-95 disabled:cursor-wait disabled:opacity-70"
         >
-          <RefreshCw size={14} />
-          <span>Refresh Logs</span>
+          <RefreshCw size={14} className={isRefreshing ? 'animate-spin' : ''} />
+          <span>{isRefreshing ? 'Refreshing...' : 'Refresh Logs'}</span>
         </button>
+      </div>
+      <div className="min-h-4 text-right text-[11px] text-gray-500" role="status" aria-live="polite">
+        {refreshMessage}
       </div>
 
       {/* Empty State */}
@@ -101,10 +133,10 @@ export const RunsList: React.FC<RunsListProps> = ({ runs, onRefresh }) => {
                       </span>
                     </td>
                     <td className="px-5 py-4 text-gray-400">{new Date(run.created_at).toLocaleString()}</td>
-                    <td className="px-5 py-4 text-right">
+                    <td className="p-0 text-right">
                       <button
                         onClick={() => setSelectedId(run.id)}
-                        className="inline-flex items-center space-x-1 text-[#ff6d5a] hover:text-[#ff8575] font-sans font-bold"
+                        className="flex w-full items-center justify-end space-x-1 px-5 py-4 text-[#ff6d5a] hover:bg-[#ff6d5a]/10 hover:text-[#ff8575] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#ff6d5a] font-sans font-bold transition-colors"
                       >
                         <span>View Outputs</span>
                         <ChevronRight size={14} />

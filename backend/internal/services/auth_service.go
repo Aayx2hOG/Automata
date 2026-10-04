@@ -37,8 +37,15 @@ type AuthResult struct {
 	RefreshToken string
 }
 
-func (s *AuthService) Register(ctx context.Context, email, password string) (*AuthResult, error) {
-	existingUser, err := s.users.GetByEmail(ctx, email)
+func (s *AuthService) Register(ctx context.Context, username, email, password string) (*AuthResult, error) {
+	existingUser, err := s.users.GetByUsername(ctx, username)
+	if err == nil && existingUser != nil {
+		return nil, models.ErrorUserAlreadyExists
+	}
+	if err != nil && !errors.Is(err, models.ErrorUserNotFound) {
+		return nil, err
+	}
+	existingUser, err = s.users.GetByEmail(ctx, email)
 	if err == nil && existingUser != nil {
 		return nil, models.ErrorUserAlreadyExists
 	}
@@ -51,6 +58,7 @@ func (s *AuthService) Register(ctx context.Context, email, password string) (*Au
 	}
 
 	user := &models.User{
+		Username:     username,
 		Email:        email,
 		PasswordHash: hash,
 		Role:         models.RoleUser,

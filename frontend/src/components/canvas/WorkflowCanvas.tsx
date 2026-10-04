@@ -239,14 +239,16 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
     return { nodes: graphNodes, edges: graphEdges };
   };
 
-  const handleSaveWorkflow = async () => {
+  const handleSaveWorkflow = async (): Promise<boolean> => {
     setIsSaving(true);
     try {
       const graph = getGraphData();
       await onSave(name, description, graph);
       showToast('Workflow saved successfully!');
+      return true;
     } catch (err: any) {
       showToast(`Error saving: ${err.message || 'Failed'}`);
+      return false;
     } finally {
       setIsSaving(false);
     }
@@ -413,6 +415,12 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
             onClose={() => setSelectedNode(null)}
             onUpdate={handleUpdateNode}
             onDelete={handleDeleteNode}
+            onSaveChanges={async () => {
+              if (!await handleSaveWorkflow()) {
+                throw new Error('Unable to save workflow changes.');
+              }
+            }}
+            onDiscardChanges={(id, data) => handleUpdateNode(id, data)}
           />
         )}
       </div>

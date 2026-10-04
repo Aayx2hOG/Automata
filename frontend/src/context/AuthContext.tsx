@@ -42,11 +42,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const register = async (email: string, pass: string) => {
+  const register = async (username: string, email: string, pass: string) => {
     setError(null);
     try {
       localStorage.removeItem('automata_demo_mode');
-      const data = await api.auth.register(email, pass);
+      const data = await api.auth.register(username, email, pass);
       setUser(data.user);
     } catch (err: any) {
       setError(err.message || 'Registration failed');
