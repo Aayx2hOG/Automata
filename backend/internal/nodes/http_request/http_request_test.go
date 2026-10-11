@@ -45,3 +45,26 @@ func TestResponseLimit(t *testing.T) {
 		}
 	}
 }
+
+func TestDurableIdempotencyKeyOverridesConfiguredHeader(t *testing.T) {
+	n := New()
+	calls := 0
+	n.client.Transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		calls++
+		if got := r.Header.Get("Idempotency-Key"); got != "automata-stable-run-node-key" {
+			t.Fatalf("idempotency key = %q", got)
+		}
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader("ok"))}, nil
+	})
+	ec := &node.ExecutionContext{Ctx: context.Background(), IdempotencyKey: "automata-stable-run-node-key", Config: map[string]any{
+		"url": "https://example.com", "method": "POST", "headers": map[string]any{"Idempotency-Key": "unsafe-shared-value"},
+	}}
+	for i := 0; i < 2; i++ {
+		if _, err := n.Execute(ec); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if calls != 2 {
+		t.Fatalf("calls = %d", calls)
+	}
+}

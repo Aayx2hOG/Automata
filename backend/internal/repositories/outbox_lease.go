@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Aayx2hOG/automata/internal/models"
+	"github.com/Aayx2hOG/automata/internal/node"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
@@ -166,6 +167,12 @@ func (r *pgScheduleRepository) finishRun(ctx context.Context, claim *claimedRun,
  error_message=$4, finished_at=clock_timestamp() WHERE id=$1`, claim.id, status, outputJSON, message); err != nil {
 		return err
 	}
+	if executionErr != nil {
+		if _, err = tx.Exec(ctx, `UPDATE workflow_node_runs SET status='failed', error_message=$2,
+ updated_at=clock_timestamp() WHERE run_id=$1 AND status='running'`, claim.id, executionErr.Error()); err != nil {
+			return err
+		}
+	}
 	return tx.Commit(ctx)
 }
 
@@ -211,6 +218,7 @@ func (r *pgScheduleRepository) ProcessRun(ctx context.Context, id uuid.UUID, exe
 		}
 	}()
 	defer func() { stopHeartbeat(); <-done }()
+	execCtx = node.WithState(execCtx, &runNodeState{repository: r, claim: claim})
 	outputs, executionErr := execute(execCtx, claim.graph, claim.seed)
 	stopHeartbeat()
 	<-done
@@ -219,6 +227,9 @@ func (r *pgScheduleRepository) ProcessRun(ctx context.Context, id uuid.UUID, exe
 	}
 	if heartbeatErr != nil {
 		return false, heartbeatErr
+	}
+	if errors.Is(executionErr, node.ErrStateUnavailable) {
+		return false, executionErr
 	}
 	if err = r.finishRun(ctx, claim, outputs, executionErr); err != nil {
 		return false, err

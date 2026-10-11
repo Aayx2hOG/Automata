@@ -18,7 +18,6 @@ import (
 )
 
 const (
-	defaultMaxRetries       = 2
 	defaultExecutionTimeout = 60 * time.Second
 )
 
@@ -137,37 +136,16 @@ func flattenOutputs(outputs map[string]map[string]interface{}) map[string]interf
 	return flattened
 }
 
-func (s *WorkflowService) CreateSchedule(ctx context.Context, ownerID, workflowID uuid.UUID, cronExpr string) (*models.Schedule, error) {
-	if _, err := s.GetWorkflow(ctx, workflowID, ownerID); err != nil {
-		return nil, err
-	}
-	return nil, nil
-}
-
 func (s *WorkflowService) ExecuteDurableGraph(ctx context.Context, graph models.WorkflowGraph, seed map[string]interface{}) (map[string]interface{}, error) {
 	execCtx, cancel := context.WithTimeout(ctx, defaultExecutionTimeout)
 	defer cancel()
-	for attempt := 0; ; attempt++ {
-		var result *workflow.ExecutionResult
-		if seed != nil {
-			result = s.engine.RunWithSeededOutput(&node.ExecutionContext{Ctx: execCtx}, graph, "webhook_trigger", seed)
-		} else {
-			result = s.engine.Run(&node.ExecutionContext{Ctx: execCtx}, graph)
-		}
-		if execCtx.Err() != nil {
-			return flattenOutputs(result.Outputs), execCtx.Err()
-		}
-		if result.Error == nil || attempt == defaultMaxRetries {
-			return flattenOutputs(result.Outputs), result.Error
-		}
-		timer := time.NewTimer(time.Duration(attempt+1) * 2 * time.Second)
-		select {
-		case <-execCtx.Done():
-			timer.Stop()
-			return flattenOutputs(result.Outputs), execCtx.Err()
-		case <-timer.C:
-		}
+	var result *workflow.ExecutionResult
+	if seed != nil {
+		result = s.engine.RunWithSeededOutput(&node.ExecutionContext{Ctx: execCtx}, graph, "webhook_trigger", seed)
+	} else {
+		result = s.engine.Run(&node.ExecutionContext{Ctx: execCtx}, graph)
 	}
+	return flattenOutputs(result.Outputs), result.Error
 }
 
 func (s *WorkflowService) VerifyWebhook(ctx context.Context, id uuid.UUID, timestamp, signature string, body []byte) error {

@@ -1,256 +1,218 @@
 # Automata
 
-A production-grade, self-hosted workflow automation platform, combining ideas from Temporal (durable workflow execution), n8n (visual workflow building), and GitHub Actions (execution history and logs).
-
-Automata lets users define workflows as directed acyclic graphs connecting triggers, APIs, conditions, and custom logic, then execute and observe those workflows reliably.
-
-## Status
-
-This project is under active development. Current progress by phase:
-
-| Phase | Scope | Status |
-|---|---|---|
-| 1 | Foundation: config, database, authentication, CI | Complete |
-| 2 | Workflow engine: graph model, validation, execution | Complete |
-| 3 | Core nodes (HTTP, Delay, Logger, Condition, Webhook, JSON Parser, Manual) | Complete |
-| 4 | Durable execution: PostgreSQL outbox, concurrent consumers, retries | Complete |
-| 5 | Scheduler & Triggers: cron scheduler, webhook triggers | Complete |
-| 6 | Frontend: persistent visual editor, execution history, schedules, signed webhooks | Core flow implemented |
-| 7 | Integrations: GitHub, Discord, Slack, SMTP | Not started |
-| 8 | Production readiness: execution security implemented; metrics, tracing, secrets management pending | In progress |
-
-## Tech stack
-
-**Backend**
-- Go 1.24+
-- Chi (HTTP router)
-- PostgreSQL via pgx / pgxpool
-- JWT authentication with Argon2id password hashing
-- Zap (structured logging)
-- Robfig Cron (cron expression parsing)
-- Go-playground Validator (request validation)
-
-**Frontend**
-- Bun runtime & package manager
-- React 19 + Vite + TypeScript
-- `@xyflow/react` (React Flow v12) visual node DAG editor
-- Tailwind CSS v4, Lucide Icons, Glassmorphism design system
-
-**Infrastructure**
-- Docker & Docker Compose
-- GitHub Actions (CI)
+Automata is a self-hosted workflow automation application with a visual DAG editor,
+a Go API, and PostgreSQL-backed execution. It supports manual runs, signed webhooks,
+cron schedules, conditional branches, and persisted execution results.
 
 ## Architecture
 
-Workflows are stored as directed acyclic graphs: a set of nodes, each performing one action, connected by edges that may carry branching conditions. Every node implements a common interface:
-
-```go
-type Node interface {
-    Execute(ec *ExecutionContext) (map[string]interface{}, error)
-}
+```text
+React editor → Go HTTP API ──────────────┐
+Signed webhooks → Go HTTP API           ├→ PostgreSQL: workflow versions, runs, outbox
+Cron scheduler ────────────────────────┘                     ↓
+                                        Dispatcher → bounded queue → workers
+                                                                        ↓
+                                                   DAG engine → node checkpoints
 ```
 
-New node types are added by implementing this interface and registering them in the registry — the execution engine itself never needs to change. Graphs are validated for cycles and dangling references before execution, and every run is persisted with its status, outputs, and timing.
+The API, scheduler, dispatcher, and workers run in one process. PostgreSQL is the
+source of truth; the local queue contains disposable run IDs. Creating a run and
+its outbox entry is atomic. Runs retain the workflow version selected at admission.
+Workers claim renewable, fenced leases using short transactions and release the
+connection while nodes execute. Multiple instances may share one database.
 
-### Durable execution
+Successful node outputs are checkpointed. Recovery reuses those outputs instead
+of repeating completed nodes. Retries apply only to the failing node; attempt
+counts survive worker restarts. Every node defaults to **one attempt**. Explicit
+retry policies allow up to five attempts with a fixed backoff of 0–30 seconds.
+HTTP nodes send a stable `Idempotency-Key` derived from the run and node IDs.
 
-Manual, webhook, and cron triggers atomically persist a workflow run and a PostgreSQL outbox entry. Webhook payloads are stored with the job, and each run uses the workflow version selected when it was created. Scheduled occurrences also advance their schedule in the same transaction, with a unique occurrence key preventing duplicate run records.
+**External effects are not exactly once.** A destination can accept a request
+before its checkpoint commits. Enable retries for writes only when the destination
+supports idempotency. A node whose attempt budget is exhausted after an interrupted
+attempt fails with an unknown-outcome error rather than silently repeating the
+write. Separate incoming requests create separate runs and idempotency keys.
 
-Each server starts a dispatcher and bounded worker pool independently of cron schedules. The local queue contains durable run IDs; workers use short `FOR UPDATE SKIP LOCKED` transactions to claim renewable leases, then release the database connection before executing. Defaults are four workers and 64 queued IDs (`WORKER_CONCURRENCY`, `WORKER_QUEUE_CAPACITY`). Workflow errors receive up to two retries with 2-second and 4-second delays, within a shared 60-second execution timeout.
+See [execution semantics](backend/docs/scheduled-execution.md) for recovery,
+retry configuration, migration compatibility, and operational limits.
 
-Runs become visibly `running` when claimed. Leases last 30 seconds and renew every 10 seconds; lease loss cancels execution, and a stale worker cannot acknowledge another worker's job. Shutdown releases unfinished jobs, while crashes leave them reclaimable after lease expiry. Execution remains **at least once**: external side effects may repeat, so downstream actions should support idempotency. Missed cron intervals are skipped rather than replayed.
+## Requirements
 
-Workflow creation and its initial version commit atomically. Persisted webhook payloads become the webhook trigger's output. Graph joins wait for every incoming branch to complete or be skipped, then execute once if at least one incoming edge is active; entirely inactive branches propagate their skipped state.
+- Go matching [backend/go.mod](backend/go.mod), currently 1.26.5 or later.
+- PostgreSQL 16 or later; Docker Compose v2 can provide the development database.
+- Node.js 24+ and npm for the frontend.
+- `golang-migrate` v4.18.3 when applying migrations without Compose.
 
-See [durable execution details](backend/docs/scheduled-execution.md) for transaction semantics and operational limits.
+## Local development
 
-Docker Compose includes daily PostgreSQL backups and continuous WAL archiving.
-Local backups use a separate Docker volume; production requires configuring
-off-server storage. See [database recovery](backend/docs/database-recovery.md)
-for setup, monitoring, restore instructions and outage retry behavior.
-
-### Execution security
-
-- Webhooks require a per-workflow HMAC-SHA256 signature and a timestamp within five minutes of server time. Request bodies are limited to 1 MiB.
-- HTTP request nodes accept public HTTP(S) destinations without URL credentials. DNS results and redirect destinations are validated, connections use validated IPs, and environment proxies are not used. Internal service URLs are blocked, and response bodies are limited to 4 MiB after decompression.
-- Refresh-token rotation revokes the old token and creates its replacement atomically. Revoked, expired, or concurrently reused tokens cannot rotate again, and inactive users cannot refresh.
-
-See [execution security details](backend/docs/execution-security.md) for webhook signing and compatibility changes.
-
-## Getting started
-
-### Prerequisites
-
-- Go 1.24 or later
-- PostgreSQL 16 or later (or Docker to run it in a container)
-- [golang-migrate](https://github.com/golang-migrate/migrate) CLI
-
-### Setup
-
-Clone the repository and move into the project:
-
-```bash
-git clone <repository-url>
-cd automata
-```
-
-Create the shared local environment file:
+From the repository root:
 
 ```bash
 cp .env.example .env
+openssl rand -hex 32
 ```
 
-Generate a secret:
-
-```bash
-openssl rand -base64 32
-```
-
-Paste the output into `.env` as the value for `JWT_SECRET`.
-
-### Frontend development
-
-See [frontend setup](frontend/README.md) for the reusable Docker development database, API and frontend startup commands, and browser tests.
-
-### Database
-
-Start PostgreSQL with the shared root environment:
+Set `JWT_SECRET` in `.env` to the generated value. The example database password is
+for local development only. Start the database and apply **all** migrations:
 
 ```bash
 docker compose -f compose.dev.yml up -d --wait postgres
 docker compose -f compose.dev.yml run --rm migrate
 ```
 
-Stop older server instances, apply migrations through `000011_outbox_leases`, then start the updated server. Older consumers do not honor leases and must not run alongside the new workers. Migration `000009_schedule_outbox` adds durable dispatch and schedule occurrence identity; `000010_execution_security` adds persisted webhook payloads and independent webhook secrets; `000011_outbox_leases` adds renewable execution ownership.
-
-### Running the server
+Start the backend:
 
 ```bash
 cd backend
 go run ./cmd/server
 ```
 
-The server starts on the port configured in `.env` (default `8080`). Verify it is running:
+In another terminal:
 
 ```bash
-curl http://localhost:8080/healthz
+cd frontend
+npm ci
+npm run dev
 ```
 
-## API overview
+Open http://localhost:3000. Vite proxies `/api` to the backend on port 8080. Check
+the API with `curl http://localhost:8080/healthz`. Create a blank workflow to test
+execution without an external service. See [frontend documentation](frontend/README.md)
+for browser tests and editor behavior.
 
-### Authentication
+`compose.dev.yml` provides the development database and a migration command.
+`docker-compose.yml` is a database-only alternative with its own persistent volume;
+use one configuration at a time. Neither starts the application or configures
+production backups. Both bind PostgreSQL to loopback.
 
-| Method | Path | Description |
+## Configuration
+
+Existing process environment variables take precedence over `.env` files. The
+backend reads `.env` in its working directory, then `../.env`, without overwriting
+already-set variables. Environment settings override optional `config.yaml` or
+`config.json` values and built-in defaults. Invalid configuration fails startup.
+See [the configuration example](backend/internal/config/config.example.yaml).
+
+| Variable | Default | Purpose |
 |---|---|---|
-| POST | `/auth/register` | Create a new user account |
-| POST | `/auth/login` | Authenticate and receive tokens |
-| POST | `/auth/refresh` | Rotate a refresh token for a new access token |
-| POST | `/auth/logout` | Revoke a refresh token |
+| `DATABASE_URL` | Required | PostgreSQL connection string |
+| `JWT_SECRET` | Required | Random signing secret, at least 32 characters |
+| `ENV` | `development` | Runtime environment; use `production` when deployed |
+| `HTTP_PORT` | `8080` | API port |
+| `HTTP_ALLOWED_ORIGINS` | Empty | Explicit browser origins; empty disables cross-origin access |
+| `HTTP_TRUSTED_PROXIES` | Empty | Comma-separated CIDRs of trusted reverse proxies |
+| `HTTP_SHUTDOWN_TIMEOUT` | `10s` | Shutdown deadline |
+| `DATABASE_MAX_CONNS` | `10` | Pool capacity per process |
+| `WORKER_CONCURRENCY` | `4` | Concurrent workflow executions per process |
+| `WORKER_QUEUE_CAPACITY` | `64` | Local run-ID queue capacity |
+| `EXECUTION_MAX_PENDING_RUNS` | `10000` | Global queued + running job limit |
+| `EXECUTION_MAX_PENDING_PER_USER` | `100` | Queued + running job limit per owner |
+| `EXECUTION_RUNS_PER_MINUTE` | `60` | Per-owner rolling admission limit across all triggers |
+| `AUTH_ACCESS_TOKEN_TTL` | `15m` | Access-token lifetime |
+| `AUTH_REFRESH_TOKEN_TTL` | `168h` | Refresh-token lifetime |
 
-### Users
+All instances sharing a database must use the same admission limits. Limits are
+checked inside the run/outbox transaction under a shared admission lock. Owner
+limits return `429`; a full global backlog returns `503`, both with `Retry-After`.
+Rejected cron occurrences remain due for a later scheduler poll.
 
-| Method | Path | Description |
+Forwarded IP headers are ignored unless the directly connected peer is trusted.
+For `X-Forwarded-For`, the API walks the chain from right to left to find the first
+untrusted hop. Configure only actual proxy addresses and have the edge proxy
+sanitize incoming forwarding headers. IP-based auth/webhook throttles are local
+to each process; database admission quotas are shared across instances.
+
+All API request bodies are limited to 1 MiB. Graphs allow at most 100 nodes,
+500 edges, and 255 bytes per node ID. Oversized bodies return `413`; invalid graphs
+return `400` with validation details. Rate-limiter tracking is bounded.
+
+The former `CREDENTIALS_ENCRYPTION_KEY` setting was unused and is no longer required
+or consumed. Credential storage and encryption are not implemented; do not assume
+workflow configuration or output is encrypted at the application layer.
+
+## API
+
+Authenticated routes require `Authorization: Bearer <access_token>` and enforce
+workflow ownership.
+
+| Method | Path | Purpose |
 |---|---|---|
-| GET | `/users/me` | Return the authenticated user (requires a Bearer token) |
-
-### Workflows & Execution
-
-| Method | Path | Description |
-|---|---|---|
-| POST | `/workflows` | Create a new workflow |
-| GET | `/workflows` | List workflows owned by the authenticated user |
-| GET | `/workflows/{id}` | Get workflow details and active version |
-| PUT | `/workflows/{id}` | Save metadata and publish a new graph version atomically |
-| POST | `/workflows/{id}/run` | Manually trigger a workflow run |
-| GET | `/runs/{id}` | Get workflow execution status and outputs |
-| GET | `/runs?limit=50&offset=0` | List the authenticated owner's runs, newest first (maximum limit 100) |
-
-### Schedules (Cron Triggers)
-
-| Method | Path | Description |
-|---|---|---|
-| POST | `/workflows/{id}/schedules` | Create a new cron schedule for a workflow |
-| GET | `/workflows/{id}/schedules` | List active/inactive schedules for a workflow |
+| POST | `/auth/register`, `/auth/login` | Create an account or authenticate |
+| POST | `/auth/refresh`, `/auth/logout` | Rotate or revoke refresh tokens |
+| GET | `/users/me` | Current user |
+| POST, GET | `/workflows` | Create or list workflows |
+| GET, PUT | `/workflows/{id}` | Read or publish a new workflow version |
+| POST | `/workflows/{id}/run` | Queue a manual run |
+| GET | `/runs/{id}` | Execution status and outputs |
+| GET | `/runs?limit=50&offset=0` | Owner's run history, maximum page size 100 |
+| POST, GET | `/workflows/{id}/schedules` | Create or list cron schedules |
 | DELETE | `/schedules/{scheduleID}` | Deactivate a schedule |
+| POST | `/webhook/{workflowID}` | Queue a signed webhook run |
+| GET | `/healthz` | Process and database connectivity check |
 
-### Webhook Triggers
+Webhooks require `X-Webhook-Timestamp` and `X-Webhook-Signature`. Sign the exact
+request bytes with HMAC-SHA256 over `timestamp + "." + body`, using the workflow's
+secret string directly. The signature is hex encoded, and the timestamp must be
+within five minutes of server time. Signatures authenticate requests but do not
+deduplicate delivery. See [security details](backend/docs/execution-security.md).
 
-| Method | Path | Description |
-|---|---|---|
-| POST | `/webhook/{workflowID}` | Trigger a workflow with a signed JSON webhook payload |
+## Deployment and upgrades
 
-Retrieve `webhook_secret` from an authenticated workflow create, get, or list response. Send these headers with each webhook request:
+1. Provision PostgreSQL, restricted networking, TLS termination, and runtime secrets.
+2. Configure explicit browser origins, trusted proxies, and shared admission limits.
+3. Stop existing application instances before applying migration
+   `000013_node_execution_state` and deploying this version. Old workers cannot
+   honor checkpoints or quotas. Already pending runs have no historical node
+   checkpoints; reconcile possible external effects before resuming them.
+4. Apply all migrations once using a migration role, then start the application
+   with an appropriately restricted runtime database role. Do not run migrations
+   independently from every application replica.
+5. Verify health, a workflow run, a signed webhook, and a scheduled occurrence.
+6. Configure backup scheduling, off-host storage, monitoring, and restore drills.
 
-| Header | Value |
-|---|---|
-| `X-Webhook-Timestamp` | Unix timestamp in seconds, within ±300 seconds of server time |
-| `X-Webhook-Signature` | Hex-encoded HMAC-SHA256 of `timestamp + "." + exact_request_body`, using the workflow's secret string as the key |
+Database schema changes are additive, but rollback of migration 13 deletes node
+checkpoints. Stop all workers before rollback and reconcile unfinished external
+operations. Never mix old and new workers during this upgrade.
 
-Use the secret string directly, without hex-decoding it, and sign the exact bytes sent as the body. Unsigned or invalidly signed requests receive `401`; bodies larger than 1 MiB receive `413`. Valid signatures can be replayed within the timestamp window, so deduplicate event IDs when repeated delivery must not repeat business effects.
+The repository does not provision production hosting, automatic backups, metrics,
+or tracing. [Backup and recovery procedures](backend/docs/database-recovery.md)
+describe the supported logical backup workflow and its limits. HTTP bind errors
+terminate the process with a failure exit status after worker shutdown.
 
-### Health
+## Verification
 
-| Method | Path | Description |
-|---|---|---|
-| GET | `/healthz` | Liveness check, including database connectivity |
-
-Authenticated requests carry a JWT in the `Authorization` header: `Authorization: Bearer <access_token>`.
-
-## Testing
-
-Run these commands from `backend/`. Unit tests and HTTP/webhook security tests (no external dependencies):
+From `backend/`, fast tests require no database:
 
 ```bash
-go test ./tests/unit/... ./internal/nodes/http_request ./internal/services -v
+go test ./tests/unit ./internal/workflow ./internal/queue ./internal/worker \
+  ./internal/config ./internal/middleware ./internal/nodes/http_request \
+  ./internal/services ./internal/api/handlers
 ```
 
-Integration tests (require a running PostgreSQL instance with migrations applied):
+For full verification, use a **dedicated test database** with all migrations applied:
 
 ```bash
-export $(grep -v '^#' .env | xargs)
-go test ./tests/integration/... -v
-```
-
-Durable execution regression tests use a separate test database and create and remove isolated schemas:
-
-```bash
-TEST_DATABASE_URL=postgres://... go test ./internal/repositories -v
-```
-
-These cover transactional rollback, competing schedulers and consumers, interrupted consumption, and terminal failure acknowledgement. They are skipped when `TEST_DATABASE_URL` is unset; API integration tests are skipped when `DATABASE_URL` is unset. Set both variables to include both database suites in a full run.
-
-Run everything with race detection and coverage:
-
-```bash
+export DATABASE_URL='postgres://user:password@localhost:5433/automata_test?sslmode=disable'
+export TEST_DATABASE_URL="$DATABASE_URL"
+export JWT_SECRET='test-only-secret-at-least-32-characters'
+go vet ./...
+go build ./...
 go test ./... -race -cover
 ```
 
-## Continuous integration
+Repository tests create isolated schemas and remove them afterwards. API tests
+write test users to the configured database. Database suites skip if their URLs
+are unset; a passing run without these variables does not validate persistence.
 
-Every push and pull request runs `go vet`, `go build`, and the full test suite against a real PostgreSQL service container via GitHub Actions. See `.github/workflows/ci.yml`.
+CI runs migrations, vet, build, race-enabled Go tests, a logical backup/restore
+smoke test, frontend checks, and browser regressions. Test-only IP-limit bypass
+requires both `ENV=test` and `TEST_DISABLE_RATE_LIMIT=1`; durable run quotas remain
+enforced. No external shell-script files are required.
 
-## Project structure
+## Current boundaries
 
-```
-backend/
-    cmd/            entry points (server, migrate)
-    docs/           durable execution and security documentation
-    internal/
-        api/        HTTP handlers, router, server lifecycle
-        auth/       JWT, password hashing, refresh token logic
-        config/     configuration loading
-        database/   connection pool, migrations
-        middleware/ auth, RBAC, logging, rate limiting
-        models/     domain types and typed errors
-        nodes/      individual workflow node implementations
-        repositories/ database access layer
-        scheduler/  cron scheduling and durable outbox consumption
-        services/   business logic
-        telemetry/  structured logging
-        workflow/   graph validation, execution engine, node registry
-    tests/
-        unit/       fast, dependency-free tests
-        integration/ tests against a real database
-docker-compose.yml  local PostgreSQL service
-frontend/           React + Vite visual workflow editor
-```
+Execution is sequential within each DAG and has a 60-second deadline per worker
+execution. Delay nodes occupy workers. HTTP non-2xx responses are returned as node
+outputs (`success=false`), so workflows must branch on the result. Long-lived waits,
+configurable HTTP error classification, credential management, output retention,
+metrics, and tracing remain future work.

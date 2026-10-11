@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/netip"
 	"time"
 
 	appAuth "github.com/Aayx2hOG/automata/internal/auth"
@@ -19,11 +20,11 @@ type Server struct {
 	logger     *zap.Logger
 }
 
-func NewServer(port int, shutdownTimeout time.Duration, pool *pgxpool.Pool, logger *zap.Logger, allowedOrigins []string, authService *services.AuthService, workflowService *services.WorkflowService, scheduleRepo repositories.ScheduleRepository, sched *scheduler.Scheduler, userRepo repositories.UserRepository, jwtManager *appAuth.JWTManager) *Server {
+func NewServer(port int, shutdownTimeout time.Duration, pool *pgxpool.Pool, logger *zap.Logger, allowedOrigins []string, authService *services.AuthService, workflowService *services.WorkflowService, scheduleRepo repositories.ScheduleRepository, sched *scheduler.Scheduler, userRepo repositories.UserRepository, jwtManager *appAuth.JWTManager, trustedProxies ...netip.Prefix) *Server {
 	return &Server{
 		httpServer: &http.Server{
 			Addr:         fmt.Sprintf(":%d", port),
-			Handler:      NewRouter(pool, logger, allowedOrigins, authService, workflowService, scheduleRepo, sched, userRepo, jwtManager),
+			Handler:      NewRouter(pool, logger, allowedOrigins, authService, workflowService, scheduleRepo, sched, userRepo, jwtManager, trustedProxies...),
 			ReadTimeout:  10 * time.Second,
 			WriteTimeout: 10 * time.Second,
 		},

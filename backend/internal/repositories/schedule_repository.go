@@ -24,10 +24,15 @@ type ScheduleRepository interface {
 type pgScheduleRepository struct {
 	pool          *pgxpool.Pool
 	leaseDuration time.Duration
+	limits        AdmissionLimits
 }
 
-func NewScheduleRepository(pool *pgxpool.Pool) ScheduleRepository {
-	return &pgScheduleRepository{pool: pool}
+func NewScheduleRepository(pool *pgxpool.Pool, limits ...AdmissionLimits) ScheduleRepository {
+	r := &pgScheduleRepository{pool: pool, limits: DefaultAdmissionLimits()}
+	if len(limits) > 0 {
+		r.limits = limits[0]
+	}
+	return r
 }
 
 func (r *pgScheduleRepository) Create(ctx context.Context, s *models.Schedule) error {

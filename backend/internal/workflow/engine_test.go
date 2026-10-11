@@ -107,3 +107,55 @@ func TestCanceledExecutionDoesNotRunNodes(t *testing.T) {
 		t.Fatalf("result: %+v", result)
 	}
 }
+
+func TestRetryOnlyExecutesFailedNode(t *testing.T) {
+	calls := map[string]int{}
+	registry := &Registry{constructors: map[string]NodeConstructor{
+		"step": func() node.Node {
+			return nodeFunc(func(ctx *node.ExecutionContext) (map[string]any, error) {
+				calls[ctx.NodeID]++
+				if ctx.NodeID == "flaky" && calls[ctx.NodeID] < 3 {
+					return nil, errors.New("temporary failure")
+				}
+				return map[string]any{"done": true}, nil
+			})
+		},
+	}}
+	graph := models.WorkflowGraph{
+		Nodes: []models.GraphNode{{ID: "write", Type: "step"}, {ID: "flaky", Type: "step", Retry: &models.RetryPolicy{MaxAttempts: 3}}},
+		Edges: []models.GraphEdge{{FromNodeID: "write", ToNodeID: "flaky"}},
+	}
+	result := NewEngine(registry).Run(&node.ExecutionContext{Ctx: context.Background()}, graph)
+	if result.Error != nil || calls["write"] != 1 || calls["flaky"] != 3 {
+		t.Fatalf("calls=%v error=%v", calls, result.Error)
+	}
+}
+
+func TestDefaultPolicyDoesNotRetry(t *testing.T) {
+	calls := 0
+	registry := &Registry{constructors: map[string]NodeConstructor{
+		"write": func() node.Node {
+			return nodeFunc(func(*node.ExecutionContext) (map[string]any, error) {
+				calls++
+				return nil, errors.New("unknown delivery outcome")
+			})
+		},
+	}}
+	result := NewEngine(registry).Run(&node.ExecutionContext{Ctx: context.Background()}, models.WorkflowGraph{Nodes: []models.GraphNode{{ID: "write", Type: "write"}}})
+	if result.Error == nil || calls != 1 {
+		t.Fatalf("default retried a write: calls=%d error=%v", calls, result.Error)
+	}
+}
+
+func TestGraphResourceAndRetryLimits(t *testing.T) {
+	graph := models.WorkflowGraph{Nodes: make([]models.GraphNode, MaxNodes+1)}
+	if ValidatorGraph(graph).Valid {
+		t.Fatal("accepted oversized graph")
+	}
+	for _, policy := range []models.RetryPolicy{{MaxAttempts: 0}, {MaxAttempts: 6}, {MaxAttempts: 1, BackoffSeconds: -1}, {MaxAttempts: 1, BackoffSeconds: 31}} {
+		graph.Nodes = []models.GraphNode{{ID: "root", Type: "manual_trigger", Retry: &policy}}
+		if ValidatorGraph(graph).Valid {
+			t.Fatalf("accepted invalid retry policy: %+v", policy)
+		}
+	}
+}

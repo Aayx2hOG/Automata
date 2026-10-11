@@ -2,7 +2,6 @@ package workflow
 
 import (
 	"fmt"
-	"maps"
 
 	"github.com/Aayx2hOG/automata/internal/models"
 	"github.com/Aayx2hOG/automata/internal/node"
@@ -74,20 +73,10 @@ func (e *Engine) run(ctx *node.ExecutionContext, graph models.WorkflowGraph, s *
 		graphNode := nodesByID[nodeID]
 		var result map[string]any
 		if active[nodeID] {
-			if s != nil && graphNode.Type == s.nodeType {
-				// Persisted trigger data is the trigger's output, not its config.
-				result = maps.Clone(s.data)
-			} else {
-				impl, err := e.registry.Build(graphNode.Type)
-				if err != nil {
-					return &ExecutionResult{Outputs: outputs, Error: fmt.Errorf("node %q: %w", nodeID, err), FailedNodeID: nodeID}
-				}
-				result, err = impl.Execute(&node.ExecutionContext{
-					Ctx: ctx.Ctx, NodeID: nodeID, Config: graphNode.Config, Outputs: outputs,
-				})
-				if err != nil {
-					return &ExecutionResult{Outputs: outputs, Error: fmt.Errorf("node %q failed: %w", nodeID, err), FailedNodeID: nodeID}
-				}
+			var err error
+			result, err = e.executeNode(ctx, graphNode, outputs, s)
+			if err != nil {
+				return &ExecutionResult{Outputs: outputs, Error: fmt.Errorf("node %q failed: %w", nodeID, err), FailedNodeID: nodeID}
 			}
 			outputs[nodeID] = result
 		}

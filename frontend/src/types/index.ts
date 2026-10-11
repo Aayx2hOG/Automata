@@ -2,6 +2,7 @@ export type RunStatus = 'pending' | 'running' | 'succeeded' | 'failed';
 export type TriggerType = 'manual' | 'webhook' | 'cron' | 'interval' | 'api';
 
 export interface GraphNode {
+  retry?: { max_attempts: number; backoff_seconds: number };
   label?: string;
   id: string;
   type: string;

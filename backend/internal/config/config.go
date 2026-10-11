@@ -2,6 +2,8 @@ package config
 
 import (
 	"fmt"
+	"net/netip"
+	"os"
 	"strings"
 	"time"
 
@@ -10,11 +12,18 @@ import (
 )
 
 type Config struct {
-	Env      string         `mapstructure:"env"`
-	HTTP     HTTPConfig     `mapstructure:"http"`
-	Database DatabaseConfig `mapstructure:"database"`
-	Auth     AuthConfig     `mapstructure:"auth"`
-	Worker   WorkerConfig   `mapstructure:"worker"`
+	Env       string          `mapstructure:"env"`
+	HTTP      HTTPConfig      `mapstructure:"http"`
+	Database  DatabaseConfig  `mapstructure:"database"`
+	Auth      AuthConfig      `mapstructure:"auth"`
+	Execution ExecutionConfig `mapstructure:"execution"`
+	Worker    WorkerConfig    `mapstructure:"worker"`
+}
+
+type ExecutionConfig struct {
+	MaxPendingRuns    int `mapstructure:"max_pending_runs"`
+	MaxPendingPerUser int `mapstructure:"max_pending_per_user"`
+	RunsPerMinute     int `mapstructure:"runs_per_minute"`
 }
 
 type WorkerConfig struct {
@@ -25,6 +34,7 @@ type WorkerConfig struct {
 type HTTPConfig struct {
 	Port            int           `mapstructure:"port"`
 	ShutdownTimeout time.Duration `mapstructure:"shutdown_timeout"`
+	TrustedProxies  string        `mapstructure:"trusted_proxies"`
 	AllowedOrigins  string        `mapstructure:"allowed_origins"`
 }
 
@@ -35,7 +45,6 @@ type DatabaseConfig struct {
 
 type AuthConfig struct {
 	JWTSecret       string        `mapstructure:"jwt_secret"`
-	CredentialsKey  string        `mapstructure:"credentials_key"`
 	AccessTokenTTL  time.Duration `mapstructure:"access_token_ttl"`
 	RefreshTokenTTL time.Duration `mapstructure:"refresh_token_ttl"`
 }
@@ -52,16 +61,30 @@ func (c HTTPConfig) AllowedOriginsList() []string {
 }
 
 func Load() (*Config, error) {
-	// Load the shared repository environment, with backend-local compatibility.
-	_ = godotenv.Overload("../.env", ".env")
+	return load(".env", "../.env")
+}
+
+func load(envFiles ...string) (*Config, error) {
+	// Existing process variables always win. Local files are development defaults.
+	for _, file := range envFiles {
+		if err := godotenv.Load(file); err != nil && !os.IsNotExist(err) {
+			return nil, fmt.Errorf("load environment file %s: %w", file, err)
+		}
+	}
 
 	v := viper.New()
 	v.SetConfigName("config")
-	v.SetConfigType("json")
+	v.SetConfigType("yaml")
 	v.AddConfigPath(".")
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	v.AutomaticEnv()
 
+	v.SetDefault("env", "development")
+	v.SetDefault("http.allowed_origins", "")
+	v.SetDefault("http.trusted_proxies", "")
+	v.SetDefault("execution.max_pending_runs", 10000)
+	v.SetDefault("execution.max_pending_per_user", 100)
+	v.SetDefault("execution.runs_per_minute", 60)
 	v.SetDefault("http.port", 8080)
 	v.SetDefault("http.shutdown_timeout", "10s")
 	v.SetDefault("database.max_conns", 10)
@@ -82,9 +105,6 @@ func Load() (*Config, error) {
 	if err := v.BindEnv("auth.jwt_secret", "JWT_SECRET"); err != nil {
 		return nil, fmt.Errorf("bind JWT_SECRET: %w", err)
 	}
-	if err := v.BindEnv("auth.credentials_key", "CREDENTIALS_ENCRYPTION_KEY"); err != nil {
-		return nil, fmt.Errorf("bind CREDENTIALS_ENCRYPTION_KEY: %w", err)
-	}
 	if err := v.BindEnv("env", "ENV"); err != nil {
 		return nil, fmt.Errorf("bind ENV: %w", err)
 	}
@@ -103,9 +123,37 @@ func Load() (*Config, error) {
 	if len(cfg.Auth.JWTSecret) < 32 {
 		return nil, fmt.Errorf("JWT_SECRET must be at least 32 characters")
 	}
-	if len(cfg.Auth.CredentialsKey) != 32 {
-		return nil, fmt.Errorf("CREDENTIALS_ENCRYPTION_KEY must be exactly 32 bytes (AES-256)")
-	}
 
+	if cfg.HTTP.Port < 1 || cfg.HTTP.Port > 65535 || cfg.HTTP.ShutdownTimeout <= 0 {
+		return nil, fmt.Errorf("HTTP port and shutdown timeout must be valid positive values")
+	}
+	if cfg.Database.MaxConns < 1 || cfg.Auth.AccessTokenTTL <= 0 || cfg.Auth.RefreshTokenTTL <= 0 {
+		return nil, fmt.Errorf("database connections and token lifetimes must be positive")
+	}
+	if cfg.Execution.MaxPendingRuns < 1 || cfg.Execution.MaxPendingPerUser < 1 || cfg.Execution.RunsPerMinute < 1 {
+		return nil, fmt.Errorf("execution admission limits must be positive")
+	}
+	if _, err := cfg.HTTP.TrustedProxyPrefixes(); err != nil {
+		return nil, err
+	}
 	return &cfg, nil
+}
+
+func (c HTTPConfig) TrustedProxyPrefixes() ([]netip.Prefix, error) {
+	var prefixes []netip.Prefix
+	for _, entry := range strings.Split(c.TrustedProxies, ",") {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			continue
+		}
+		prefix, err := netip.ParsePrefix(entry)
+		if err != nil {
+			return nil, fmt.Errorf("invalid trusted proxy CIDR %q", entry)
+		}
+		if prefix.Bits() == 0 {
+			return nil, fmt.Errorf("trusted proxies must not include all addresses")
+		}
+		prefixes = append(prefixes, prefix.Masked())
+	}
+	return prefixes, nil
 }

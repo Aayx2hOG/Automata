@@ -18,6 +18,8 @@ type ScheduledExecutor func(context.Context, models.WorkflowGraph, map[string]in
 // EnqueueRun atomically claims an occurrence, creates its run and durable work,
 // and advances the schedule. No ownership state survives a rolled-back transaction.
 func (r *pgScheduleRepository) EnqueueRun(ctx context.Context, schedule models.Schedule, ranAt, nextRunAt time.Time) error {
+	ctx, cancel := context.WithTimeout(ctx, outboxDatabaseTimeout)
+	defer cancel()
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return err
@@ -45,6 +47,9 @@ func (r *pgScheduleRepository) EnqueueRun(ctx context.Context, schedule models.S
 		return fmt.Errorf("scheduled workflow version: %w", err)
 	}
 	var runID uuid.UUID
+	if err := admitRun(ctx, tx, workflowID, r.limits); err != nil {
+		return err
+	}
 	err = tx.QueryRow(ctx, `INSERT INTO workflow_runs
   (workflow_id, workflow_version_id, trigger_type, schedule_id, scheduled_for)
   VALUES ($1, $2, 'cron', $3, $4) RETURNING id`, workflowID, versionID, schedule.ID, schedule.NextRunAt).Scan(&runID)

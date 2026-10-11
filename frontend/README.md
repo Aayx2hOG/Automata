@@ -43,7 +43,7 @@ npm ci
 npm run dev
 ```
 
-Open http://localhost:5173 and create an account. The development server proxies `/api` to port 8080. For a deployed frontend, configure a reverse proxy for `/api` or set `VITE_API_BASE_URL` at build time.
+Open http://localhost:3000 and create an account. The development server proxies `/api` to port 8080. For a deployed frontend, configure a reverse proxy for `/api` or set `VITE_API_BASE_URL` at build time.
 
 Create a **Blank Canvas** workflow to try the complete flow without external services: edit, save, execute, inspect outputs, and reload. Schedules are configured from the Schedules tab, not as graph nodes. Webhook testing signs the exact JSON body using the workflow's secret; generated shell commands prompt for that secret.
 
@@ -54,15 +54,15 @@ The execution screen shows the latest 50 runs and refreshes automatically. Per-n
 ```sh
 npm run build
 npm run lint
-npx playwright install chromium
+npx playwright install --with-deps chromium
 # Requires the API and migrated database running:
 npm run test:e2e
 ```
 
 Playwright starts Vite automatically. The browser test uses a fresh account and workflow, checks persistence and successful execution, schedules, signed webhooks, and failed-save feedback. It leaves its test data in the database.
 
-For database-backed Go tests, run from `backend/` against the development database:
+For database-backed Go tests, run from `backend/` against a dedicated test database:
 
 ```sh
-TEST_DATABASE_URL='postgres://automata:automata_dev_password@localhost:5433/automata_dev?sslmode=disable' go test ./internal/repositories -race
+TEST_DATABASE_URL='postgres://automata:automata_dev_password@localhost:5433/automata_test?sslmode=disable' go test ./internal/repositories -race
 ```

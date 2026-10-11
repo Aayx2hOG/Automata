@@ -42,8 +42,12 @@ func outboxFixture(t *testing.T) (*pgScheduleRepository, models.Schedule) {
 		t.Fatal(err)
 	}
 	t.Cleanup(pool.Close)
-	for _, name := range []string{"000001_create_users", "000005_create_workflows", "000006_create_workflow_versions", "000007_create_workflow_runs", "000008_create_schedules", "000009_schedule_outbox", "000010_execution_security", "000011_outbox_leases"} {
-		sql, err := os.ReadFile(filepath.Join("..", "database", "migrations", name+".up.sql"))
+	migrations, err := filepath.Glob(filepath.Join("..", "database", "migrations", "*.up.sql"))
+	if err != nil || len(migrations) == 0 {
+		t.Fatalf("find migrations: %v", err)
+	}
+	for _, path := range migrations {
+		sql, err := os.ReadFile(path)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -220,13 +224,7 @@ func TestAllTriggersDurable(t *testing.T) {
 func TestRefreshRotationConcurrencyAndInactiveUser(t *testing.T) {
 	r, s := outboxFixture(t)
 	ctx := context.Background()
-	sql, err := os.ReadFile(filepath.Join("..", "database", "migrations", "000002_create_refresh_tokens.up.sql"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err = r.pool.Exec(ctx, string(sql)); err != nil {
-		t.Fatal(err)
-	}
+	var err error
 	var owner uuid.UUID
 	if err = r.pool.QueryRow(ctx, `SELECT owner_id FROM workflows WHERE id=$1`, s.WorkflowID).Scan(&owner); err != nil {
 		t.Fatal(err)

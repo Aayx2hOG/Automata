@@ -3,16 +3,18 @@ package models
 import "errors"
 
 var (
-	ErrorUserNotFound       = errors.New("user not found")
-	ErrorUserAlreadyExists  = errors.New("user already exists")
-	ErrorInvalidCredentials = errors.New("invalid email or password")
-	ErrorInvalidToken       = errors.New("invalid or expired token")
-	ErrorTokenRevoked       = errors.New("token has been revoked")
-	ErrWorkflowNotFound     = errors.New("workflow not found")
+	ErrRunQuotaExceeded        = errors.New("run quota exceeded; retry later")
+	ErrQueueFull               = errors.New("execution backlog is full; retry later")
+	ErrorUserNotFound          = errors.New("user not found")
+	ErrorUserAlreadyExists     = errors.New("user already exists")
+	ErrorInvalidCredentials    = errors.New("invalid email or password")
+	ErrorInvalidToken          = errors.New("invalid or expired token")
+	ErrorTokenRevoked          = errors.New("token has been revoked")
+	ErrWorkflowNotFound        = errors.New("workflow not found")
 	ErrWorkflowVersionNotFound = errors.New("workflow has no versions")
-	ErrInvalidWorkflowGraph = errors.New("invalid workflow graph")
-	ErrCyclicWorkflowGraph  = errors.New("workflow graph contains a cycle")
-	ErrorWorkflowInactive   = errors.New("workflow is inactive")
+	ErrInvalidWorkflowGraph    = errors.New("invalid workflow graph")
+	ErrCyclicWorkflowGraph     = errors.New("workflow graph contains a cycle")
+	ErrorWorkflowInactive      = errors.New("workflow is inactive")
 )
 
 type AppError struct {

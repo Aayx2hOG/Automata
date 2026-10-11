@@ -1,24 +1,14 @@
 package middleware
 
 import (
-	"net"
 	"net/http"
+	"net/netip"
 	"os"
-	"strings"
 	"sync"
 	"time"
 
 	"golang.org/x/time/rate"
 )
-
-func runningUnderTest() bool {
-	for _, a := range os.Args {
-		if strings.HasPrefix(a, "-test.") {
-			return true
-		}
-	}
-	return false
-}
 
 type ipLimiter struct {
 	limiter  *rate.Limiter
@@ -26,24 +16,24 @@ type ipLimiter struct {
 }
 
 type RateLimiter struct {
-	mu       sync.Mutex
-	limiters map[string]*ipLimiter
-	rps      rate.Limit
-	burst    int
-	stop     chan struct{}
+	mu          sync.Mutex
+	limiters    map[string]*ipLimiter
+	rps         rate.Limit
+	burst       int
+	proxies     []netip.Prefix
+	nextCleanup time.Time
 }
 
-func NewRateLimiter(rps float64, burst int) *RateLimiter {
+func NewRateLimiter(rps float64, burst int, proxies ...netip.Prefix) *RateLimiter {
 	rl := &RateLimiter{
 		limiters: make(map[string]*ipLimiter),
 		rps:      rate.Limit(rps),
 		burst:    burst,
-		stop:     make(chan struct{}),
+		proxies:  append([]netip.Prefix(nil), proxies...),
 	}
-	if os.Getenv("TEST_DISABLE_RATE_LIMIT") == "1" {
+	if os.Getenv("ENV") == "test" && os.Getenv("TEST_DISABLE_RATE_LIMIT") == "1" {
 		rl.rps = 0
 	}
-	go rl.cleanupLoop()
 	return rl
 }
 
@@ -55,8 +45,20 @@ func (rl *RateLimiter) getLimiter(ip string) *rate.Limiter {
 		return nil
 	}
 
+	now := time.Now()
+	if now.After(rl.nextCleanup) {
+		for key, entry := range rl.limiters {
+			if now.Sub(entry.lastSeen) > 10*time.Minute {
+				delete(rl.limiters, key)
+			}
+		}
+		rl.nextCleanup = now.Add(time.Minute)
+	}
 	entry, exists := rl.limiters[ip]
 	if !exists {
+		if len(rl.limiters) >= 10000 {
+			return rate.NewLimiter(0, 0)
+		}
 		limiter := rate.NewLimiter(rl.rps, rl.burst)
 		rl.limiters[ip] = &ipLimiter{limiter: limiter, lastSeen: time.Now()}
 		return limiter
@@ -65,55 +67,12 @@ func (rl *RateLimiter) getLimiter(ip string) *rate.Limiter {
 	return entry.limiter
 }
 
-func (rl *RateLimiter) cleanupLoop() {
-	ticker := time.NewTicker(5 * time.Minute)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ticker.C:
-			rl.mu.Lock()
-			for ip, entry := range rl.limiters {
-				if time.Since(entry.lastSeen) > 10*time.Minute {
-					delete(rl.limiters, ip)
-				}
-			}
-			rl.mu.Unlock()
-		case <-rl.stop:
-			return
-		}
-	}
-}
-
-func (rl *RateLimiter) Stop() {
-	select {
-	case <-rl.stop:
-		return
-	default:
-		close(rl.stop)
-	}
-}
-
-func clientIP(r *http.Request) string {
-	if xf := r.Header.Get("X-Forwarded-For"); xf != "" {
-		parts := strings.Split(xf, ",")
-		ip := strings.TrimSpace(parts[0])
-		return strings.Split(ip, "%")[0]
-	}
-	if xr := r.Header.Get("X-Real-IP"); xr != "" {
-		return strings.Split(strings.TrimSpace(xr), "%")[0]
-	}
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		return strings.Split(r.RemoteAddr, "%")[0]
-	}
-	return strings.Split(host, "%")[0]
-}
-
 func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		limiter := rl.getLimiter(clientIP(r))
+		limiter := rl.getLimiter(clientIP(r, rl.proxies))
 		if limiter != nil {
 			if !limiter.Allow() {
+				w.Header().Set("Retry-After", "2")
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusTooManyRequests)
 				w.Write([]byte(`{"error":"too many requests, please try again later"}`))

@@ -148,7 +148,7 @@ func (h *WorkflowHandler) Run(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, models.ErrorWorkflowInactive):
 			respondError(w, h.logger, http.StatusConflict, "workflow is inactive")
 		default:
-			if respondDatabaseUnavailable(w, h.logger, err) {
+			if respondAdmissionError(w, h.logger, err) || respondDatabaseUnavailable(w, h.logger, err) {
 				return
 			}
 			h.logger.Error("run workflow failed", zap.Error(err))
@@ -196,7 +196,7 @@ func (h *WorkflowHandler) Update(w http.ResponseWriter, r *http.Request) {
 			respondError(w, h.logger, http.StatusNotFound, "workflow not found")
 			return
 		}
-		if respondDatabaseUnavailable(w, h.logger, err) {
+		if respondAdmissionError(w, h.logger, err) || respondDatabaseUnavailable(w, h.logger, err) {
 			return
 		}
 		h.logger.Error("update workflow failed", zap.Error(err))

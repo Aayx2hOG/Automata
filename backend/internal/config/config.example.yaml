@@ -9,6 +9,7 @@ http:
   port: 8080
   shutdown_timeout: 10s
   allowed_origins: http://localhost:3000 # comma-separated list
+  trusted_proxies: "" # CIDRs of actual reverse proxies; empty trusts no forwarded headers
 
 database:
   url: postgres://automata:automata@localhost:5432/automata?sslmode=disable
@@ -22,3 +23,8 @@ auth:
   jwt_secret: change-me-to-a-random-32-byte-string # required, min 32 chars
   access_token_ttl: 15m
   refresh_token_ttl: 168h # 7 days
+
+execution:
+  max_pending_runs: 10000 # global queued + running jobs
+  max_pending_per_user: 100
+  runs_per_minute: 60 # rolling window across all trigger types

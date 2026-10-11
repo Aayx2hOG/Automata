@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"net/netip"
 	"time"
 
 	"github.com/Aayx2hOG/automata/internal/api/handlers"
@@ -27,6 +28,7 @@ func NewRouter(
 	sched *scheduler.Scheduler,
 	userRepo repositories.UserRepository,
 	jwtManager *appAuth.JWTManager,
+	trustedProxies ...netip.Prefix,
 ) http.Handler {
 	r := chi.NewRouter()
 
@@ -34,17 +36,25 @@ func NewRouter(
 	r.Use(middleware.RequestID)
 	r.Use(appMiddleware.RequestLogger(logger))
 	r.Use(middleware.Timeout(60 * time.Second))
-	r.Use(cors.Handler(cors.Options{
+	corsOptions := cors.Options{
 		AllowedOrigins:   allowedOrigins,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Content-Type", "Authorization", "X-Webhook-Timestamp", "X-Webhook-Signature"},
 		AllowCredentials: true,
-	}))
+	}
+	if len(allowedOrigins) == 0 {
+		// The middleware defaults an empty list to all origins; our configuration
+		// instead requires explicit permission for cross-origin browser access.
+		corsOptions.AllowOriginFunc = func(*http.Request, string) bool { return false }
+	}
+	r.Use(cors.Handler(corsOptions))
+
+	r.Use(appMiddleware.LimitRequestBody)
 
 	r.Get("/healthz", handlers.HealthCheck(pool, logger))
 
 	authHandler := handlers.NewAuthHandler(authService, logger)
-	authLimiter := appMiddleware.NewRateLimiter(0.5, 5)
+	authLimiter := appMiddleware.NewRateLimiter(0.5, 5, trustedProxies...)
 	r.Route("/auth", func(r chi.Router) {
 		r.Use(authLimiter.Middleware)
 		r.Post("/register", authHandler.Register)
@@ -88,7 +98,7 @@ func NewRouter(
 	})
 
 	webhookHandler := handlers.NewWebhookHandler(workflowService, logger)
-	webhookLimiter := appMiddleware.NewRateLimiter(5, 20)
+	webhookLimiter := appMiddleware.NewRateLimiter(5, 20, trustedProxies...)
 	r.Route("/webhook", func(r chi.Router) {
 
 		r.Use(webhookLimiter.Middleware)

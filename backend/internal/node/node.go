@@ -3,10 +3,11 @@ package node
 import "context"
 
 type ExecutionContext struct {
-	Ctx     context.Context
-	NodeID  string
-	Config  map[string]any
-	Outputs map[string]map[string]any
+	Ctx            context.Context
+	NodeID         string
+	Config         map[string]any
+	Outputs        map[string]map[string]any
+	IdempotencyKey string
 }
 
 func (ec *ExecutionContext) Output(nodeID, field string) (any, bool) {

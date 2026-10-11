@@ -7,14 +7,6 @@ on:
     branches: [main]
 
 jobs:
-  database-recovery:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v4
-      - name: Restore full backup and replay WAL
-        run: sh ops/postgres/test-recovery.sh
-
   backend:
     runs-on: ubuntu-latest
 
@@ -55,7 +47,7 @@ jobs:
 
       - name: Run migrations
         run: |
-          go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+          go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@v4.18.3
           migrate -path internal/database/migrations -database "postgres://automata:automata@localhost:5432/automata?sslmode=disable" up
         env:
           DATABASE_URL: postgres://automata:automata@localhost:5432/automata?sslmode=disable
@@ -66,7 +58,18 @@ jobs:
           DATABASE_URL: postgres://automata:automata@localhost:5432/automata?sslmode=disable
           TEST_DATABASE_URL: postgres://automata:automata@localhost:5432/automata?sslmode=disable
           JWT_SECRET: ci-test-secret-do-not-use-in-production-ok
-          ENV: development
+          ENV: test
+
+      - name: Verify logical backup and restore
+        env:
+          POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          docker exec "$POSTGRES_CONTAINER" psql -U automata -d automata -v ON_ERROR_STOP=1 -c "CREATE TABLE backup_restore_probe (id integer PRIMARY KEY); INSERT INTO backup_restore_probe VALUES (1);"
+          docker exec "$POSTGRES_CONTAINER" pg_dump -U automata -d automata --format=custom --file=/tmp/automata.dump
+          docker exec "$POSTGRES_CONTAINER" createdb -U automata automata_restore
+          docker exec "$POSTGRES_CONTAINER" pg_restore -U automata --dbname=automata_restore --exit-on-error --no-owner --no-acl /tmp/automata.dump
+          test "$(docker exec "$POSTGRES_CONTAINER" psql -U automata -d automata_restore -Atc 'SELECT count(*) FROM backup_restore_probe')" = "1"
+          docker exec "$POSTGRES_CONTAINER" psql -U automata -d automata_restore -v ON_ERROR_STOP=1 -c 'SELECT node_id, attempts FROM workflow_node_runs LIMIT 1;'
 
       - uses: actions/setup-node@v4
         with:
@@ -92,12 +95,13 @@ jobs:
             if curl -fsS http://localhost:8080/healthz; then break; fi
             sleep 1
           done
+          curl -fsS http://localhost:8080/healthz > /dev/null
           cd ../frontend
           npm run test:e2e
         env:
           DATABASE_URL: postgres://automata:automata@localhost:5432/automata?sslmode=disable
           JWT_SECRET: ci-test-secret-do-not-use-in-production-ok
-          ENV: development
+          ENV: test
           TEST_DISABLE_RATE_LIMIT: '1'
 
       - uses: actions/upload-artifact@v4

@@ -59,6 +59,11 @@ func (n *Node) Execute(ec *node.ExecutionContext) (map[string]any, error) {
 			req.Header.Set(key, fmt.Sprintf("%v", val))
 		}
 	}
+	// A durable node keeps the same key across retries and worker recovery.
+	// The destination must implement idempotency for this to prevent duplicates.
+	if ec.IdempotencyKey != "" {
+		req.Header.Set("Idempotency-Key", ec.IdempotencyKey)
+	}
 
 	resp, err := n.client.Do(req)
 	if err != nil {

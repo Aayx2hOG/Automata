@@ -18,6 +18,9 @@ type ValidationResult struct {
 
 type visitState int
 
+const MaxNodes = 100
+const MaxEdges = 500
+
 const (
 	white visitState = iota
 	gray
@@ -26,6 +29,9 @@ const (
 
 func ValidatorGraph(graph models.WorkflowGraph) ValidationResult {
 	errs := []ValidationError{}
+	if len(graph.Nodes) > MaxNodes || len(graph.Edges) > MaxEdges {
+		return ValidationResult{Errors: []ValidationError{{Message: fmt.Sprintf("workflow exceeds limits of %d nodes or %d edges", MaxNodes, MaxEdges)}}}
+	}
 
 	if len(graph.Nodes) == 0 {
 		return ValidationResult{
@@ -36,6 +42,12 @@ func ValidatorGraph(graph models.WorkflowGraph) ValidationResult {
 
 	nodeIDs := make(map[string]bool, len(graph.Nodes))
 	for _, node := range graph.Nodes {
+		if len(node.ID) > 255 {
+			errs = append(errs, ValidationError{Message: "node id must not exceed 255 bytes"})
+		}
+		if node.Retry != nil && (node.Retry.MaxAttempts < 1 || node.Retry.MaxAttempts > 5 || node.Retry.BackoffSeconds < 0 || node.Retry.BackoffSeconds > 30) {
+			errs = append(errs, ValidationError{NodeID: node.ID, Message: "retry requires 1–5 attempts and 0–30 seconds backoff"})
+		}
 		if node.ID == "" {
 			errs = append(errs, ValidationError{Message: "node found with an empty id"})
 			continue

@@ -28,6 +28,7 @@ func setupTestEnv(t *testing.T) *testEnv {
 	t.Helper()
 	// These tests exercise API behavior; rate limiting has its own unit tests.
 	t.Setenv("TEST_DISABLE_RATE_LIMIT", "1")
+	t.Setenv("ENV", "test")
 
 	_ = godotenv.Load("../../.env")
 

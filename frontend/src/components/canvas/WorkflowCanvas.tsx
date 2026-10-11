@@ -97,6 +97,7 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
           label: n.label || n.id,
           type: n.type,
           config: n.config || {},
+          retry: n.retry,
         },
       }));
     }
@@ -226,6 +227,7 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
       id: n.id,
       type: (n.data as any).type || 'http_request',
       config: (n.data as any).config || {},
+      retry: (n.data as any).retry,
       label: (n.data as any).label,
       position: { x: n.position.x, y: n.position.y },
     }));

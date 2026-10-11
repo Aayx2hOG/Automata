@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -50,9 +52,14 @@ func main() {
 	jwtManager := auth.NewJWTManager(cfg.Auth.JWTSecret, cfg.Auth.AccessTokenTTL)
 	authService := services.NewAuthService(userRepo, refreshTokenRepo, jwtManager, cfg.Auth.RefreshTokenTTL)
 
+	limits := repositories.AdmissionLimits{
+		MaxPending:        cfg.Execution.MaxPendingRuns,
+		MaxPendingPerUser: cfg.Execution.MaxPendingPerUser,
+		RunsPerMinute:     cfg.Execution.RunsPerMinute,
+	}
 	workflowRepo := repositories.NewWorkflowRepository(pool)
 	workflowVersionRepo := repositories.NewWorkflowVersionRepository(pool)
-	workflowRunRepo := repositories.NewWorkflowRunRepository(pool)
+	workflowRunRepo := repositories.NewWorkflowRunRepository(pool, limits)
 	nodeRegistry := workflow.NewRegistry(logger)
 	engine := workflow.NewEngine(nodeRegistry)
 	workflowService := services.NewWorkflowService(workflowRepo, workflowVersionRepo, workflowRunRepo, engine, logger)
@@ -60,7 +67,7 @@ func main() {
 	workerCtx, cancelWorkers := context.WithCancel(context.Background())
 	defer cancelWorkers()
 
-	scheduleRepo := repositories.NewScheduleRepository(pool)
+	scheduleRepo := repositories.NewScheduleRepository(pool, limits)
 	jobQueue := queue.NewQueue(cfg.Worker.QueueCapacity)
 	workers := worker.NewPool(jobQueue, func(ctx context.Context, job queue.Job) {
 		if _, err := scheduleRepo.ProcessRun(ctx, job.RunID, workflowService.ExecuteDurableGraph); err != nil && ctx.Err() == nil {
@@ -74,17 +81,23 @@ func main() {
 	schedulerDone := make(chan struct{})
 	go func() { defer close(schedulerDone); sched.Run(workerCtx) }()
 
-	srv := api.NewServer(cfg.HTTP.Port, cfg.HTTP.ShutdownTimeout, pool, logger, cfg.HTTP.AllowedOriginsList(), authService, workflowService, scheduleRepo, sched, userRepo, jwtManager)
+	trustedProxies, _ := cfg.HTTP.TrustedProxyPrefixes() // Validated during configuration loading.
+	srv := api.NewServer(cfg.HTTP.Port, cfg.HTTP.ShutdownTimeout, pool, logger, cfg.HTTP.AllowedOriginsList(), authService, workflowService, scheduleRepo, sched, userRepo, jwtManager, trustedProxies...)
 
-	go func() {
-		if err := srv.StartServer(); err != nil {
-			logger.Info("server stopped", zap.Error(err))
-		}
-	}()
+	serverErrors := make(chan error, 1)
+	go func() { serverErrors <- srv.StartServer() }()
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
-	<-stop
+	defer signal.Stop(stop)
+	var serverErr error
+	select {
+	case <-stop:
+	case serverErr = <-serverErrors:
+		if !errors.Is(serverErr, http.ErrServerClosed) {
+			logger.Error("HTTP server failed", zap.Error(serverErr))
+		}
+	}
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.HTTP.ShutdownTimeout)
 	defer cancel()
@@ -109,5 +122,10 @@ func main() {
 		logger.Warn("workflow workers shutdown timed out", zap.Error(err))
 	}
 
+	if serverErr != nil && !errors.Is(serverErr, http.ErrServerClosed) {
+		pool.Close()
+		_ = logger.Sync()
+		os.Exit(1)
+	}
 	logger.Info("server exited cleanly")
 }

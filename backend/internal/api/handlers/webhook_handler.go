@@ -35,7 +35,7 @@ func (h *WebhookHandler) Trigger(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.WorkflowService.VerifyWebhook(r.Context(), workflowID, r.Header.Get("X-Webhook-Timestamp"), r.Header.Get("X-Webhook-Signature"), body); err != nil {
-		if respondDatabaseUnavailable(w, h.logger, err) {
+		if respondAdmissionError(w, h.logger, err) || respondDatabaseUnavailable(w, h.logger, err) {
 			return
 		}
 		if errors.Is(err, models.ErrorInvalidToken) {
@@ -65,7 +65,7 @@ func (h *WebhookHandler) Trigger(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, models.ErrorWorkflowInactive):
 			respondError(w, h.logger, http.StatusConflict, "workflow is inactive")
 		default:
-			if respondDatabaseUnavailable(w, h.logger, err) {
+			if respondAdmissionError(w, h.logger, err) || respondDatabaseUnavailable(w, h.logger, err) {
 				return
 			}
 			h.logger.Error("webhook trigger failed", zap.Error(err))

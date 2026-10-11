@@ -28,11 +28,18 @@ type NodePosition struct {
 }
 
 type GraphNode struct {
+	Retry    *RetryPolicy   `json:"retry,omitempty"`
 	Position *NodePosition  `json:"position,omitempty"`
 	Label    string         `json:"label,omitempty"`
 	ID       string         `json:"id"`
 	Type     string         `json:"type"`
 	Config   map[string]any `json:"config"`
+}
+
+// RetryPolicy applies to this node only, including attempts after recovery.
+type RetryPolicy struct {
+	MaxAttempts    int `json:"max_attempts"`
+	BackoffSeconds int `json:"backoff_seconds"`
 }
 
 type GraphEdge struct {

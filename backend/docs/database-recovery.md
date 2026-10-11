@@ -1,111 +1,73 @@
-# Database backup and outage recovery
+# Database backup and recovery
 
-`docker compose up -d --build` now starts PostgreSQL with WAL archiving and a
-pgBackRest backup worker. Compose 2.24+ is required. The existing `postgres_data`
-volume is retained. Restarting PostgreSQL to enable archiving briefly interrupts
-connections; deploy during a maintenance window.
+## What is provided
 
-The worker creates a full backup on startup and every 24 hours after a successful
-backup, retains seven full backups with their required WAL, and retries failures
-every minute. PostgreSQL switches active WAL segments after 60 seconds of activity.
-This is asynchronous archival: recent transactions can be lost if the database
-disk fails before WAL reaches the repository. Failed archival retains WAL locally
-and retries; prolonged repository outages can fill the database disk.
+The Compose files run PostgreSQL with a persistent data volume. They do **not**
+configure automatic backups, WAL archiving, pgBackRest, or point-in-time recovery.
+Production backup scheduling and storage are deployment responsibilities.
 
-## Off-server storage
+CI performs a logical dump/restore smoke test using PostgreSQL's bundled tools.
+This verifies schema/data restoration in an isolated CI database. It does not
+verify your production storage, credentials, backup schedule, or disaster recovery.
 
-The default `postgres_backups` Docker volume is for local development. It survives
-database-container loss, but NOT loss of the host or `docker compose down -v`.
-Before production, copy `ops/postgres/backup.env.example` to `.env.backup` in the
-repository root, fill in a dedicated S3 bucket/prefix, credentials and encryption
-passphrase, then recreate both services:
+## Backup procedure
 
-```sh
-docker compose up -d --build --force-recreate postgres backup
-docker compose exec -u postgres backup pgbackrest --stanza=automata info
-docker compose exec -u postgres backup pgbackrest --stanza=automata check
+Use PostgreSQL client tools compatible with the server version. Set `DATABASE_URL`
+in a secure environment; do not commit credentials. A logical backup can be taken
+while the database is running:
+
+```bash
+umask 077
+pg_dump --format=custom --file=automata.dump "$DATABASE_URL"
+pg_restore --list automata.dump
 ```
 
-Both services read `.env.backup`; Git ignores it. Store the encryption passphrase
-and storage credentials separately from the database host. Each independent
-cluster needs its own repository prefix. Changing repositories requires a new
-successful full backup before the new destination offers recovery coverage.
-Use a bucket lifecycle policy that does not delete objects pgBackRest still needs.
+Schedule this command using your deployment platform or backup service, check its
+exit status, and copy successful backups to encrypted off-host storage. Define
+retention, monitor backup age and failures, and regularly restore a downloaded copy.
+Protect encryption keys separately from backups. A dump does not back up cluster
+roles or deployment secrets; manage those independently.
 
-## Monitoring
+Your recovery point is the last successful dump. If that is insufficient, configure
+managed PostgreSQL point-in-time recovery or an independently operated WAL backup
+solution and test its restore procedure. The local Docker volume alone is not a
+backup and does not protect against host loss.
 
-```sh
-docker compose ps
-docker compose logs backup
-docker compose exec -u postgres backup pgbackrest --stanza=automata info
-docker compose exec -u postgres postgres psql -U automata -d postgres -c \
-  'SELECT archived_count, failed_count, last_archived_time, last_failed_time FROM pg_stat_archiver;'
+## Restore drill and cutover
+
+Restore into a new, empty database using an appropriately privileged recovery role.
+Set `RESTORE_DATABASE_URL` to that isolated database, never the live database:
+
+```bash
+pg_restore --exit-on-error --no-owner --no-acl \
+  --dbname="$RESTORE_DATABASE_URL" automata.dump
+psql "$RESTORE_DATABASE_URL" -v ON_ERROR_STOP=1 \
+  -c 'SELECT version, dirty FROM schema_migrations;' \
+  -c 'SELECT status, count(*) FROM workflow_runs GROUP BY status;' \
+  -c 'SELECT count(*) FROM workflow_node_runs;'
 ```
 
-The backup healthcheck fails if the last successful backup is older than 26 hours
-or a WAL archive check fails. Connect Docker unhealthy status, backup failures,
-and database disk usage to deployment alerts; Docker does not send alerts or
-restart unhealthy containers automatically. The first backup may take longer than
-the configured ten-minute startup grace period on a large database.
+Verify representative users, workflow versions, run results, and node checkpoints.
+Use the application version matching the restored migration level; apply required
+upgrades before starting a newer binary. Restore application role grants before
+cutover. Record the achieved recovery point and recovery time.
 
-## Restore into a fresh volume
+Before switching the live application to the restored database, stop all workers
+and review unfinished runs. Restoring a backup can lose recent checkpoints while
+external effects still exist. Stable run/node idempotency keys help only when the
+external service honors them and still retains their history. Do not automatically
+replay uncertain writes. Start workers after reconciliation, verify a controlled
+workflow, and confirm the next backup succeeds.
 
-Stop application workers first: restored pending jobs may replay external effects.
-Keep the original data volume until recovery has been verified. The restore tool
-refuses a nonempty target and does not automatically overwrite the live database.
+## Database outages
 
-For S3 recovery on a replacement host, place the same `.env.backup` there, build
-the image, and restore into a new volume:
+Committed outbox jobs survive application restarts and resume when the database
+returns. New triggers are not buffered outside PostgreSQL. Recognized connectivity
+and connection-capacity failures return `503` with `Retry-After: 5`. Admission
+capacity failures also return `503`, with `Retry-After: 60`.
 
-```sh
-docker compose build postgres
-docker run --rm --env-file .env.backup \
-  -v automata_recovered_data:/var/lib/postgresql/data \
-  --entrypoint restore-empty automata-postgres:16-backup
-```
-
-To stop at a particular time, append
-`--type=time --target="2026-09-27 12:00:00+00" --target-action=promote` to the
-restore command. The requested time must be covered by the retained backup/WAL
-history. Without a time target, PostgreSQL replays all available archived WAL.
-
-For a local repository, omit `--env-file` and additionally mount the original
-backup volume with `-v <project>_postgres_backups:/var/lib/pgbackrest`.
-
-Start the restored database in isolation so PostgreSQL performs WAL replay:
-
-```sh
-docker run -d --name automata-recovery-check --network none --env-file .env.backup \
-  -v automata_recovered_data:/var/lib/postgresql/data automata-postgres:16-backup
-docker exec -u postgres automata-recovery-check psql -U automata -d automata -c \
-  'SELECT pg_is_in_recovery();'
-```
-
-For local recovery, replace the environment-file option with the backup-volume
-mount here too. Inspect logs, verify recovered application data and ensure
-`pg_is_in_recovery()` is false before cutover. Stop the verification container;
-configure Compose's `postgres_data` volume with `external: true` and
-`name: automata_recovered_data` in a local override, then start PostgreSQL and
-the backup worker with that override. Ensure a new backup succeeds before
-resuming application workers. Never start two PostgreSQL servers on one volume.
-
-## Outage contract and restore drill
-
-Manual and webhook triggers return HTTP 503 with `Retry-After: 5` for recognized
-database connectivity, shutdown, recovery and connection-capacity failures.
-Webhook verification preserves database errors instead of treating them as bad
-signatures. Callers should retry with backoff; sign webhook retries with a fresh
-timestamp because signatures expire after five minutes.
-
-No new request is durably buffered outside PostgreSQL. Existing committed outbox
-jobs resume when the database returns. A connection loss during commit can leave
-the caller uncertain whether a request committed; a retry may create another run.
-External effects must tolerate duplicates. Missed cron intervals are still skipped.
-
-Run `sh ops/postgres/test-recovery.sh` on a Docker-enabled machine. It uses isolated
-volumes, takes a full backup, writes a later row, archives WAL, stops the source,
-restores into a fresh volume and asserts both rows survived. It also verifies the
-nonempty-target guard. CI runs this drill; repeat it against the configured remote
-repository on a separate recovery host before relying on production backups.
-
-Reference: [pgBackRest documentation](https://pgbackrest.org/user-guide.html).
+A lost connection during commit can leave a caller unsure whether a request was
+accepted. Retrying that request may create another run; inbound request deduplication
+is not implemented. Sign webhook retries with a fresh timestamp once the original
+signature expires. Monitor application database errors, disk space, connection
+usage, pending-job growth, and backup age through your deployment platform.
