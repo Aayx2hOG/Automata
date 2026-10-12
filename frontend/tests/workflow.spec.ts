@@ -1,14 +1,11 @@
 import { test, expect } from '@playwright/test';
 
-test('register, create, save, reload, execute, schedule and sign a webhook', async ({ page }) => {
+test.use({ storageState: process.env.CLERK_TEST_STORAGE_STATE });
+
+test('create, save, reload, execute, schedule and sign a webhook', async ({ page }) => {
+  test.skip(!process.env.CLERK_TEST_STORAGE_STATE, 'Provide a signed-in Clerk test account storage state.');
   const name = `Browser workflow ${Date.now()}`;
   await page.goto('/');
-  await page.getByRole('button', { name: 'Create Account', exact: true }).click();
-  await page.getByPlaceholder('your-workspace-name').fill(`browser-${Date.now()}`);
-  await page.locator('input[type=email]').fill(`browser-${Date.now()}@example.com`);
-  await page.locator('input[type=password]').first().fill('test-password-123');
-  await page.getByPlaceholder('Re-enter your password').fill('test-password-123');
-  await page.locator('form').getByRole('button', { name: 'Create Account', exact: true }).click();
   await page.getByRole('button', { name: 'Add Workflow' }).click();
   await page.getByPlaceholder('e.g. GitHub Webhook Notifier').fill(name);
   await page.getByRole('button', { name: 'Create & Open Canvas' }).click();

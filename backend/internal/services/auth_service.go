@@ -11,6 +11,7 @@ import (
 )
 
 type AuthService struct {
+	Clerk         *ClerkAuth
 	users         repositories.UserRepository
 	refreshTokens repositories.RefreshTokenRepository
 	jwtManager    *auth.JWTManager

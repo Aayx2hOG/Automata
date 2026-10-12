@@ -167,9 +167,11 @@ const Workspace: React.FC = () => {
 };
 
 const MainApp = () => {
-  const { user, isLoading } = useAuth();
-  if (isLoading) return <div role="status" className="min-h-screen bg-[#0b0e14] p-8 text-gray-200">Loading Automata…</div>;
-  return user ? <Workspace key={user.id} /> : <AuthPage />;
+  const { user, isLoading, error } = useAuth();
+  // An unresolved session is not a signed-out session. Keep the welcome page
+  // unmounted until we know whether the user belongs in the workspace.
+  if (isLoading) return null;
+  return user ? <Workspace key={user.id} /> : <AuthPage error={error} onRetry={() => window.location.reload()} />;
 };
 
 export default function App() {

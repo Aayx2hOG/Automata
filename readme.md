@@ -216,3 +216,45 @@ execution. Delay nodes occupy workers. HTTP non-2xx responses are returned as no
 outputs (`success=false`), so workflows must branch on the result. Long-lived waits,
 configurable HTTP error classification, credential management, output retention,
 metrics, and tracing remain future work.
+
+
+### Clerk and Google sign-in
+
+The React frontend uses Clerk (`@clerk/react`) and Google sign-in. This checkout is
+linked to Clerk application `app_3JrrdyYliRahu8pEo8ti4lPFM7i` (Tasktamer).
+Google is enabled in its development instance.
+
+From `frontend/`, run `clerk auth login`, then
+`clerk env pull --app app_3JrrdyYliRahu8pEo8ti4lPFM7i --file .env.local`.
+From the repository root, run
+`clerk env pull --app app_3JrrdyYliRahu8pEo8ti4lPFM7i --file backend/.env.local`.
+These local files are ignored by Git. Only `VITE_CLERK_PUBLISHABLE_KEY` is used
+by browser code; `CLERK_SECRET_KEY` is server-only.
+
+Apply migration 14 before starting the API:
+`docker compose -f compose.dev.yml run --rm migrate`.
+The migration target must match the API’s `DATABASE_URL`; migrating a separate
+Compose database does not update the database used by the API. Startup checks
+for the Clerk mapping column and stops with a clear message if it is missing.
+Start the API from `backend/` with `go run ./cmd/server`, and the frontend from
+`frontend/` with `npm run dev`. Sign up using **Continue with Google** at
+http://localhost:3000. A profile button appears after your account loads.
+
+The API verifies Clerk sessions and their authorized party. Set
+`CLERK_AUTHORIZED_PARTIES` to comma-separated frontend origins when deploying;
+local defaults allow `http://localhost:3000` and `http://127.0.0.1:3000`.
+Production requires a configured Clerk production instance and Google OAuth
+credentials. The current keys target development.
+
+Clerk subjects are stored in `users.clerk_user_id`; new users receive the `user`
+role. Existing users and workflows remain intact. Accounts are **not** merged by
+email: an existing local account with the same email needs an explicit migration
+before it can sign in through Clerk. With `CLERK_SECRET_KEY` configured, protected
+API endpoints require Clerk tokens. Without it, the API retains its legacy JWT
+mode. Do not remove the Clerk setting during a normal deployment.
+
+Frontend checks: `npm run build`, `npm run lint`, and
+`npx playwright test tests/auth.spec.ts`. The workflow browser test now requires
+`CLERK_TEST_STORAGE_STATE` pointing to a Playwright storage-state file for an
+already authenticated, dedicated Clerk test account. Keep that session file out
+of source control. The Google consent flow must be completed interactively.

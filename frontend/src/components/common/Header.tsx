@@ -1,5 +1,6 @@
 import React from 'react';
-import { Bot, Layers, PlayCircle, Clock, Webhook, LogOut, ShieldCheck, Plus, Home } from 'lucide-react';
+import { UserButton } from '@clerk/react';
+import { Bot, Layers, PlayCircle, Clock, Webhook, ShieldCheck, Plus, Home } from 'lucide-react';
 import { useAuth } from '../../context/useAuth';
 
 interface HeaderProps {
@@ -9,7 +10,7 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab, onNewWorkflow }) => {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
 
   return (
     <header className="h-16 border-b border-white/10 bg-[#10141d] backdrop-blur-xl sticky top-0 z-30 px-6 flex items-center justify-between">
@@ -111,13 +112,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab, onNewWo
             <div className="text-right hidden lg:block">
               <div className="text-xs font-semibold text-white">{user.email}</div>
             </div>
-            <button
-              onClick={logout}
-              className="p-2 rounded-xl text-gray-400 hover:bg-rose-500/10 hover:text-rose-400 transition-colors"
-              title="Sign Out"
-            >
-              <LogOut size={16} />
-            </button>
+            <UserButton />
           </div>
         )}
       </div>

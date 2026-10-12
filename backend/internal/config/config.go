@@ -44,9 +44,11 @@ type DatabaseConfig struct {
 }
 
 type AuthConfig struct {
-	JWTSecret       string        `mapstructure:"jwt_secret"`
-	AccessTokenTTL  time.Duration `mapstructure:"access_token_ttl"`
-	RefreshTokenTTL time.Duration `mapstructure:"refresh_token_ttl"`
+	ClerkSecretKey         string        `mapstructure:"clerk_secret_key"`
+	ClerkAuthorizedParties string        `mapstructure:"clerk_authorized_parties"`
+	JWTSecret              string        `mapstructure:"jwt_secret"`
+	AccessTokenTTL         time.Duration `mapstructure:"access_token_ttl"`
+	RefreshTokenTTL        time.Duration `mapstructure:"refresh_token_ttl"`
 }
 
 func (c HTTPConfig) AllowedOriginsList() []string {
@@ -61,7 +63,7 @@ func (c HTTPConfig) AllowedOriginsList() []string {
 }
 
 func Load() (*Config, error) {
-	return load(".env", "../.env")
+	return load(".env.local", ".env", "../.env")
 }
 
 func load(envFiles ...string) (*Config, error) {
@@ -91,6 +93,13 @@ func load(envFiles ...string) (*Config, error) {
 	v.SetDefault("worker.concurrency", 4)
 	v.SetDefault("worker.queue_capacity", 64)
 	v.SetDefault("auth.access_token_ttl", "15m")
+	v.SetDefault("auth.clerk_authorized_parties", "http://localhost:3000,http://127.0.0.1:3000")
+	if err := v.BindEnv("auth.clerk_secret_key", "CLERK_SECRET_KEY"); err != nil {
+		return nil, err
+	}
+	if err := v.BindEnv("auth.clerk_authorized_parties", "CLERK_AUTHORIZED_PARTIES"); err != nil {
+		return nil, err
+	}
 	v.SetDefault("auth.refresh_token_ttl", "168h")
 
 	if err := v.ReadInConfig(); err != nil {

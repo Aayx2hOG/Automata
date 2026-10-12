@@ -1,84 +1,34 @@
 import React, { useEffect, useState } from 'react';
+import { useAuth as useClerkAuth, useClerk } from '@clerk/react';
 import { User } from '../types';
-import { api, setTokens } from '../lib/api';
+import { api, setClerkTokenGetter, setTokens } from '../lib/api';
 import { AuthContext } from './auth-context';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { isLoaded, isSignedIn, sessionId, getToken } = useClerkAuth();
+  const { signOut } = useClerk();
+  const [account, setAccount] = useState<{ sessionId: string; user: User | null; error: string | null } | null>(null);
 
   useEffect(() => {
-    const initAuth = async () => {
-      const token = localStorage.getItem('automata_access_token');
-      if (token) {
-        try {
-          const userData = await api.auth.me();
-          setUser(userData);
-        } catch (err: any) {
-          console.warn('Failed to load active user from token', err);
-          setTokens(null);
-        }
-      }
-      setIsLoading(false);
-    };
+    let cancelled = false;
+    setClerkTokenGetter(getToken);
+    setTokens(null);
+    if (!isLoaded || !isSignedIn || !sessionId) return;
+    api.auth.me().then(user => {
+      if (!cancelled) setAccount({ sessionId, user, error: null });
+    }).catch(() => {
+      if (!cancelled) setAccount({ sessionId, user: null, error: 'You are signed in, but Automata could not load your account. Please try again or contact your administrator.' });
+    });
+    return () => { cancelled = true; };
+  }, [isLoaded, isSignedIn, sessionId, getToken]);
 
-    const expired = () => setUser(null);
-    window.addEventListener('automata:session-expired', expired);
-    void initAuth();
-    return () => window.removeEventListener('automata:session-expired', expired);
-  }, []);
-
-  const login = async (email: string, pass: string) => {
-    setError(null);
-    try {
-      localStorage.removeItem('automata_demo_mode');
-      await api.auth.login(email, pass);
-      const userData = await api.auth.me();
-      setUser(userData);
-    } catch (err: any) {
-      setError(err.message || 'Login failed');
-      throw err;
-    }
-  };
-
-  const register = async (username: string, email: string, pass: string) => {
-    setError(null);
-    try {
-      localStorage.removeItem('automata_demo_mode');
-      const data = await api.auth.register(username, email, pass);
-      setUser(data.user);
-    } catch (err: any) {
-      setError(err.message || 'Registration failed');
-      throw err;
-    }
-  };
-
-  const logout = async () => {
-    try {
-      await api.auth.logout();
-    } catch {
-      // ignore
-    } finally {
-      localStorage.removeItem('automata_demo_mode');
-      setUser(null);
-    }
-  };
-
-  return (
-    <AuthContext.Provider
-      value={{
-        user,
-        isAuthenticated: !!user,
-        isLoading,
-        login,
-        register,
-        logout,
-        error,
-        clearError: () => setError(null),
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
-  );
+  const current = isSignedIn && account?.sessionId === sessionId ? account : null;
+  return <AuthContext.Provider value={{
+    user: current?.user ?? null,
+    isAuthenticated: !!current?.user,
+    isLoading: !isLoaded || (!!isSignedIn && !current),
+    error: current?.error ?? null,
+    clearError: () => setAccount(previous => previous ? { ...previous, error: null } : null),
+    logout: async () => { await signOut(); },
+  }}>{children}</AuthContext.Provider>;
 };

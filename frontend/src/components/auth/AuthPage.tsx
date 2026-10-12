@@ -1,206 +1,84 @@
-import React, { useState } from 'react';
-import { Bot, Sparkles, Lock, Mail, ArrowRight, ShieldCheck, UserRound, Check } from 'lucide-react';
-import { useAuth } from '../../context/useAuth';
+import { useState } from 'react';
+import { SignIn, SignUp, UserButton, useAuth } from '@clerk/react';
+import { ArrowRight, Bot, Check, Clock3, GitBranch, Globe2, LockKeyhole, RotateCcw, Webhook, Workflow } from 'lucide-react';
+import './auth.css';
 
-export const AuthPage: React.FC = () => {
-  const { login, register, error, clearError } = useAuth();
-  const [isRegister, setIsRegister] = useState(false);
-  const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [formError, setFormError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+interface AuthPageProps {
+  pending?: boolean;
+  error?: string | null;
+  onRetry?: () => void;
+}
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email || !password || (isRegister && (!username || !confirmPassword))) return;
-    if (isRegister && password !== confirmPassword) {
-      setFormError('Passwords do not match.');
-      return;
-    }
-
-    setFormError(null);
-    setIsSubmitting(true);
-    try {
-      if (isRegister) {
-        await register(username, email, password);
-      } else {
-        await login(email, password);
-      }
-    } catch {
-      // Handled in context
-    } finally {
-      setIsSubmitting(false);
-    }
+export const AuthPage = ({ pending = false, error, onRetry }: AuthPageProps) => {
+  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
+  const { isLoaded, isSignedIn } = useAuth();
+  const appearance = {
+    elements: {
+      rootBox: { width: '100%' },
+      cardBox: { width: '100%', boxShadow: 'none', border: 'none', borderRadius: '16px' },
+      card: { background: 'transparent', boxShadow: 'none', padding: '28px' },
+      headerTitle: { fontSize: '25px', letterSpacing: '-0.7px', fontWeight: '600' },
+      headerSubtitle: { fontSize: '13px', lineHeight: '1.6' },
+      socialButtonsBlockButton: { minHeight: '46px', border: '1px solid #363a40', background: '#23262b' },
+      formButtonPrimary: { minHeight: '44px', boxShadow: 'none' },
+      formFieldInput: { minHeight: '44px', border: '1px solid #363a40', boxShadow: 'none' },
+      footer: { background: '#191c21', backgroundImage: 'none' },
+    },
   };
 
   return (
-    <div className="min-h-screen bg-[#0b0e14] text-gray-100 flex items-center justify-center p-4 relative overflow-hidden font-sans">
-      {/* Background Ambient Coral Glow */}
-      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-[#ff6d5a]/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-[#ea4e43]/10 rounded-full blur-3xl pointer-events-none" />
+    <div className="auth-page">
+      <header className="auth-nav">
+        <a href="/" className="auth-brand" aria-label="Automata home"><span className="auth-brand-icon"><Bot size={23} /></span>automata<span className="auth-brand-dot">.</span></a>
+        <nav aria-label="Account" className="auth-nav-actions">
+          {isSignedIn ? <UserButton /> : <>
+            <button className={mode === 'signin' ? 'auth-nav-link active' : 'auth-nav-link'} onClick={() => setMode('signin')}>Sign in</button>
+            <button className="auth-nav-signup" onClick={() => setMode('signup')}>Sign up <ArrowRight size={14} /></button>
+          </>}
+        </nav>
+      </header>
 
-      <div className="max-w-md w-full relative z-10 space-y-8">
-        {/* Brand Header */}
-        <div className="text-center space-y-3">
-          <div className="inline-flex p-3 rounded-2xl bg-gradient-to-tr from-[#ff6d5a] to-[#ea4e43] shadow-2xl shadow-[#ff6d5a]/40 mb-2">
-            <Bot size={36} className="text-white" />
-          </div>
-          <h1 className="text-3xl font-extrabold text-white tracking-tight">automata</h1>
-          <p className="text-xs text-gray-400">
-            Durable n8n-style workflow automation & execution engine
-          </p>
-        </div>
+      <main className="auth-main">
+        <section className="auth-story" aria-labelledby="auth-title">
+          <div className="auth-eyebrow"><span /> YOUR WORK, CONNECTED</div>
+          <h1 id="auth-title">Make the work<br />flow<span className="auth-title-accent">.</span></h1>
+          <p className="auth-description">Turn everyday tasks into dependable workflows.<br className="auth-desktop-break" /> Build visually. Run on your schedule. Stay in control.</p>
 
-        {/* Auth Card */}
-        <div className="bg-[#161a23] border border-white/10 rounded-3xl p-8 backdrop-blur-2xl shadow-2xl space-y-6">
-          {/* Tab Selector */}
-          <div className="flex bg-[#0d1017] p-1 rounded-xl border border-white/5">
-            <button
-              onClick={() => {
-                setIsRegister(false);
-                setFormError(null);
-                clearError();
-              }}
-              className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
-                !isRegister ? 'bg-[#ff6d5a] text-white shadow' : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              Sign In
-            </button>
-            <button
-              onClick={() => {
-                setIsRegister(true);
-                setFormError(null);
-                clearError();
-              }}
-              className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
-                isRegister ? 'bg-[#ff6d5a] text-white shadow' : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              Create Account
-            </button>
+          <div className="auth-workflow-preview" aria-label="Example workflow: a webhook triggers an API request, then a condition checks the response">
+            <div className="auth-preview-bar"><span><Workflow size={14} /> Lead enrichment</span><span className="auth-preview-label">EXAMPLE WORKFLOW</span></div>
+            <div className="auth-canvas">
+              <div className="auth-node"><div className="auth-node-icon coral"><Webhook size={21} /></div><strong>New lead</strong><span>Webhook trigger</span><i className="auth-port out" /></div>
+              <div className="auth-connection"><ArrowRight size={12} /></div>
+              <div className="auth-node"><div className="auth-node-icon blue"><Globe2 size={21} /></div><strong>Enrich data</strong><span>HTTP request</span><i className="auth-port in" /><i className="auth-port out" /></div>
+              <div className="auth-connection"><ArrowRight size={12} /></div>
+              <div className="auth-node"><div className="auth-node-icon green"><GitBranch size={21} /></div><strong>Check result</strong><span>Condition</span><i className="auth-port in" /></div>
+            </div>
+            <div className="auth-preview-footer"><span><Check size={13} /> A clear path from trigger to result</span><span>3 nodes</span></div>
           </div>
 
-          {error && (
-            <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs text-center font-semibold">
-              {error}
-            </div>
-          )}
-          {formError && (
-            <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs text-center font-semibold">
-              {formError}
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {isRegister && (
-              <div>
-                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider">Username</label>
-                <div className="mt-1 relative">
-                  <UserRound className="absolute left-3.5 top-3 text-gray-500" size={18} />
-                  <input
-                    type="text"
-                    required
-                    minLength={3}
-                    maxLength={30}
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    placeholder="your-workspace-name"
-                    autoComplete="username"
-                    className="w-full bg-[#0d1017] border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#ff6d5a] transition-colors"
-                  />
-                </div>
-                <p className="mt-1 text-[11px] text-gray-500">3–30 characters, used to identify you in Automata.</p>
-              </div>
-            )}
-            <div>
-              <label className="text-xs font-bold text-gray-300 uppercase tracking-wider">Email Address</label>
-              <div className="mt-1 relative">
-                <Mail className="absolute left-3.5 top-3 text-gray-500" size={18} />
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@automata.io"
-                  autoComplete="email"
-                  className="w-full bg-[#0d1017] border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#ff6d5a] transition-colors"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="text-xs font-bold text-gray-300 uppercase tracking-wider">Password</label>
-              <div className="mt-1 relative">
-                <Lock className="absolute left-3.5 top-3 text-gray-500" size={18} />
-                <input
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••••••"
-                  autoComplete={isRegister ? 'new-password' : 'current-password'}
-                  className="w-full bg-[#0d1017] border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#ff6d5a] transition-colors"
-                />
-              </div>
-            </div>
-
-            {isRegister && (
-              <div>
-                <label className="text-xs font-bold text-gray-300 uppercase tracking-wider">Confirm Password</label>
-                <div className="mt-1 relative">
-                  <Check className="absolute left-3.5 top-3 text-gray-500" size={18} />
-                  <input
-                    type="password"
-                    required
-                    value={confirmPassword}
-                    onChange={(e) => {
-                      setConfirmPassword(e.target.value);
-                      setFormError(null);
-                    }}
-                    placeholder="Re-enter your password"
-                    autoComplete="new-password"
-                    className="w-full bg-[#0d1017] border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#ff6d5a] transition-colors"
-                  />
-                </div>
-                {confirmPassword && password !== confirmPassword && (
-                  <p className="mt-1 text-[11px] text-rose-300">Passwords do not match.</p>
-                )}
-              </div>
-            )}
-
-            {isRegister && (
-              <p className="text-[11px] leading-relaxed text-gray-500">
-                Create an account to build, schedule, and monitor your automations from one workspace.
-              </p>
-            )}
-
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full py-3 rounded-xl bg-gradient-to-r from-[#ff6d5a] to-[#ea4e43] hover:from-[#ff8575] hover:to-[#ff6d5a] text-white font-bold text-sm shadow-lg shadow-[#ff6d5a]/30 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 flex items-center justify-center space-x-2"
-            >
-              <span>{isSubmitting ? (isRegister ? 'Creating account...' : 'Signing in...') : isRegister ? 'Create Account' : 'Sign In'}</span>
-              <ArrowRight size={16} />
-            </button>
-          </form>
-
-        </div>
-
-        {/* Footer features */}
-        <div className="flex items-center justify-center space-x-6 text-[11px] text-gray-500 font-medium">
-          <div className="flex items-center space-x-1">
-            <ShieldCheck size={14} className="text-emerald-400" />
-            <span>Argon2id & JWT Auth</span>
+          <div className="auth-features">
+            <div><Workflow size={17} /><span>Visual builder</span></div>
+            <div><Clock3 size={17} /><span>Scheduled runs</span></div>
+            <div><RotateCcw size={17} /><span>Durable execution</span></div>
           </div>
-          <div className="flex items-center space-x-1">
-            <Sparkles size={14} className="text-[#ff6d5a]" />
-            <span>n8n Visual Builder</span>
+        </section>
+
+        <section className="auth-entry" aria-label="Your Automata account" aria-busy={pending}>
+          <div className="auth-panel">
+            <div className="auth-panel-overline"><span className="auth-panel-mark"><Bot size={17} /></span> YOUR WORKSPACE AWAITS</div>
+            {error ? <div className="auth-account-error">
+              <h2>Let’s reconnect.</h2>
+              <p role="alert">{error}</p>
+              <button className="auth-retry" onClick={onRetry}>Try again <ArrowRight size={16} /></button>
+              <p className="auth-error-hint">Your Google sign-in is secure. You can manage your account from the profile button above.</p>
+            </div> : pending || !isLoaded ? <div className="auth-placeholder" role="status" aria-label="Preparing your workspace">
+              <div className="auth-placeholder-title" /><div className="auth-placeholder-subtitle" /><div className="auth-placeholder-button" /><div className="auth-placeholder-divider" /><div className="auth-placeholder-button" /><div className="auth-placeholder-button" />
+            </div> : mode === 'signin' ? <SignIn routing="hash" appearance={appearance} forceRedirectUrl="/" /> : <SignUp routing="hash" appearance={appearance} forceRedirectUrl="/" />}
           </div>
-        </div>
-      </div>
+          <p className="auth-security"><LockKeyhole size={12} /> Secure access with Google or email</p>
+        </section>
+      </main>
+      <footer className="auth-footer"><span>Less repetition. More creation.</span><span>Built for the way you work.</span></footer>
     </div>
   );
 };

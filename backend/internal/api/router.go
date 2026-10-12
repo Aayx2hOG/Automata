@@ -31,6 +31,10 @@ func NewRouter(
 	trustedProxies ...netip.Prefix,
 ) http.Handler {
 	r := chi.NewRouter()
+	requireAuth := appMiddleware.RequireAuth(jwtManager)
+	if authService != nil && authService.Clerk != nil {
+		requireAuth = appMiddleware.RequireClerkAuth(authService.Clerk)
+	}
 
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.RequestID)
@@ -65,13 +69,13 @@ func NewRouter(
 
 	userHandler := handlers.NewUserHandler(userRepo, logger)
 	r.Route("/users", func(r chi.Router) {
-		r.Use(appMiddleware.RequireAuth(jwtManager))
+		r.Use(requireAuth)
 		r.Get("/me", userHandler.Me)
 	})
 
 	workflowHandler := handlers.NewWorkflowHandler(workflowService, logger)
 	r.Route("/workflows", func(r chi.Router) {
-		r.Use(appMiddleware.RequireAuth(jwtManager))
+		r.Use(requireAuth)
 		r.Post("/", workflowHandler.Create)
 		r.Get("/", workflowHandler.List)
 		r.Get("/{id}", workflowHandler.Get)
@@ -81,19 +85,19 @@ func NewRouter(
 
 	runHandler := handlers.NewRunHandler(workflowService, logger)
 	r.Route("/runs", func(r chi.Router) {
-		r.Use(appMiddleware.RequireAuth(jwtManager))
+		r.Use(requireAuth)
 		r.Get("/{id}", runHandler.Get)
 		r.Get("/", runHandler.List)
 	})
 
 	scheduleHandler := handlers.NewScheduleHandler(workflowService, scheduleRepo, sched, logger)
 	r.Route("/workflows/{id}/schedules", func(r chi.Router) {
-		r.Use(appMiddleware.RequireAuth(jwtManager))
+		r.Use(requireAuth)
 		r.Post("/", scheduleHandler.Create)
 		r.Get("/", scheduleHandler.List)
 	})
 	r.Route("/schedules", func(r chi.Router) {
-		r.Use(appMiddleware.RequireAuth(jwtManager))
+		r.Use(requireAuth)
 		r.Delete("/{scheduleID}", scheduleHandler.Deactivate)
 	})
 

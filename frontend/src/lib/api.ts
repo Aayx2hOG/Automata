@@ -32,9 +32,13 @@ export function setTokens(tokens: AuthTokens | null) {
 }
 
 let refreshing: Promise<AuthTokens> | null = null;
+let clerkTokenGetter: (() => Promise<string | null>) | null = null;
+export function setClerkTokenGetter(getter: (() => Promise<string | null>) | null) {
+  clerkTokenGetter = getter;
+}
 
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-  const token = getStoredToken();
+  const token = clerkTokenGetter ? await clerkTokenGetter() : getStoredToken();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(options.headers as Record<string, string>),
@@ -55,7 +59,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
   if (!response.ok) {
     // If 401 Unauthorized and we have a refresh token, attempt refresh
-    if (response.status === 401 && getStoredRefreshToken() && !endpoint.includes('/auth/') && !endpoint.startsWith('/webhook/')) {
+    if (!clerkTokenGetter && response.status === 401 && getStoredRefreshToken() && !endpoint.includes('/auth/') && !endpoint.startsWith('/webhook/')) {
       let refreshed: AuthTokens;
       try {
         // A slower request may receive its 401 after another request already rotated tokens.

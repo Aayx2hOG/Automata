@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/Aayx2hOG/automata/internal/api"
@@ -51,6 +52,21 @@ func main() {
 	refreshTokenRepo := repositories.NewRefreshTokenRepository(pool)
 	jwtManager := auth.NewJWTManager(cfg.Auth.JWTSecret, cfg.Auth.AccessTokenTTL)
 	authService := services.NewAuthService(userRepo, refreshTokenRepo, jwtManager, cfg.Auth.RefreshTokenTTL)
+	if cfg.Auth.ClerkSecretKey != "" {
+		var clerkSchemaReady bool
+		err := pool.QueryRow(ctx, `SELECT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema = current_schema() AND table_name = 'users' AND column_name = 'clerk_user_id'
+        )`).Scan(&clerkSchemaReady)
+		if err != nil || !clerkSchemaReady {
+			logger.Fatal("Clerk authentication requires migration 14 on the database selected by DATABASE_URL; apply migrations before starting the API")
+		}
+		var origins []string
+		for _, origin := range strings.Split(cfg.Auth.ClerkAuthorizedParties, ",") {
+			origins = append(origins, strings.TrimSpace(origin))
+		}
+		authService.Clerk = services.NewClerkAuth(pool, cfg.Auth.ClerkSecretKey, origins)
+	}
 
 	limits := repositories.AdmissionLimits{
 		MaxPending:        cfg.Execution.MaxPendingRuns,
