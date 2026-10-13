@@ -1,8 +1,13 @@
 import React, { useRef, useState } from 'react';
 import { X, Trash2, Sliders, Save } from 'lucide-react';
 import { CustomNodeData } from './CustomNode';
+import { CredentialPicker } from './CredentialPicker';
+import { InputMapping } from './InputMapping';
+import { GraphNode } from '../../types';
 
 interface NodeInspectorDrawerProps {
+  sources: GraphNode[];
+  outputs?: Record<string, unknown>;
   node: { id: string; type: string; data: CustomNodeData };
   onClose: () => void;
   onUpdate: (id: string, updatedData: Partial<CustomNodeData>) => void;
@@ -13,6 +18,8 @@ interface NodeInspectorDrawerProps {
 
 export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
   node,
+  sources,
+  outputs,
   onClose,
   onUpdate,
   onDelete,
@@ -47,7 +54,7 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
     try {
       await onSaveChanges();
       setHasUnsavedChanges(false);
-      committedData.current = { ...committedData.current, label, config };
+      committedData.current = { ...node.data, label, config };
     } catch (err) {
       setSaveError((err as Error).message || 'Unable to save changes.');
     } finally {
@@ -117,6 +124,14 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
 
           {nodeType === 'http_request' && (
             <div className="space-y-4">
+              <CredentialPicker value={config.credential_id || ''} onChange={id => handleConfigChange('credential_id', id)} />
+              <label className="block text-xs text-gray-300">HTTP error handling
+                <select className="mt-1 w-full rounded-lg bg-[#0d1017] p-2" value={config.error_policy || 'output'} onChange={event => handleConfigChange('error_policy', event.target.value)}>
+                  <option value="output">Return all responses as outputs</option>
+                  <option value="fail">Fail on non-2xx responses</option>
+                </select>
+              </label>
+              {config.error_policy === 'fail' && <p className="text-xs text-gray-400">408, 429 and 5xx responses can retry. Other non-2xx responses stop immediately. Retry-After is respected within the execution deadline.</p>}
               <div>
                 <label className="text-xs text-gray-300 font-semibold">HTTP Method</label>
                 <select
@@ -257,7 +272,7 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
               <label className="block text-xs text-gray-300">Source node ID
                 <input value={config.source_node || ''} onChange={e => handleConfigChange('source_node', e.target.value)} className="mt-1 w-full bg-[#0d1017] rounded p-2" placeholder="http_req_1" />
               </label>
-              {nodeType === 'json_parser' && <label className="block text-xs text-gray-300">Source field (JSON array)
+              {nodeType === 'json_parser' && <label className="block text-xs text-gray-300">Source field (JSON)
                 <input value={config.source_field || ''} onChange={e => handleConfigChange('source_field', e.target.value)} className="mt-1 w-full bg-[#0d1017] rounded p-2" placeholder="body" />
               </label>}
             </div>
@@ -273,6 +288,17 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
             </div>
           )}
         </div>
+        <InputMapping type={nodeType} sources={sources} inputs={node.data.inputs} outputs={outputs} onChange={inputs => { onUpdate(node.id, { inputs }); setHasUnsavedChanges(true); }} />
+        <section className="space-y-2 border-t border-white/10 pt-3 text-xs text-gray-300">
+          <h4 className="font-semibold">Retry policy</h4>
+          <label className="block">Maximum attempts
+            <input type="number" min={1} max={5} className="mt-1 w-full rounded bg-[#0d1017] p-2" value={node.data.retry?.max_attempts ?? 1} onChange={event => { onUpdate(node.id, { retry: { max_attempts: Number(event.target.value), backoff_seconds: node.data.retry?.backoff_seconds ?? 0 } }); setHasUnsavedChanges(true); }} />
+          </label>
+          <label className="block">Backoff (seconds)
+            <input type="number" min={0} max={30} className="mt-1 w-full rounded bg-[#0d1017] p-2" value={node.data.retry?.backoff_seconds ?? 0} onChange={event => { onUpdate(node.id, { retry: { max_attempts: node.data.retry?.max_attempts ?? 1, backoff_seconds: Number(event.target.value) } }); setHasUnsavedChanges(true); }} />
+          </label>
+          <p className="text-gray-400">Enable retries for writes only when the destination supports idempotency.</p>
+        </section>
       </div>
 
       {hasUnsavedChanges && (

@@ -126,9 +126,23 @@ All API request bodies are limited to 1 MiB. Graphs allow at most 100 nodes,
 500 edges, and 255 bytes per node ID. Oversized bodies return `413`; invalid graphs
 return `400` with validation details. Rate-limiter tracking is bounded.
 
-The former `CREDENTIALS_ENCRYPTION_KEY` setting was unused and is no longer required
-or consumed. Credential storage and encryption are not implemented; do not assume
-workflow configuration or output is encrypted at the application layer.
+Set `CREDENTIALS_ENCRYPTION_KEY` to 64 hexadecimal characters (generate with
+`openssl rand -hex 32`) to enable the credential vault. Values are encrypted with
+AES-256-GCM and bound to their owner and credential ID. Keep the key stable across
+instances and back it up separately; replacing it makes existing values unreadable.
+Without this setting, credential endpoints return `503` and credential-dependent
+nodes fail. Workflow configuration and ordinary execution outputs are not encrypted
+at the application layer.
+
+HTTP nodes can select a stored header credential from the inspector. Only its ID
+is saved in the graph. Credentials require an exact HTTPS host (including any port),
+cannot follow redirects, and can be replaced or deleted from the same inspector.
+Replacement affects subsequent attempts in all workflows referencing that ID.
+The API returns metadata only. Literal and JSON-escaped occurrences of the selected
+secret, including Bearer/Basic token portions, are redacted from the HTTP response
+body before checkpoints and downstream nodes receive it. This is not general PII
+filtering or detection of arbitrary encodings; avoid putting secrets in ordinary
+node configuration or payloads. OAuth connection management is not yet implemented.
 
 ## API
 
@@ -145,6 +159,8 @@ workflow ownership.
 | POST | `/workflows/{id}/run` | Queue a manual run |
 | GET | `/runs/{id}` | Execution status and outputs |
 | GET | `/runs?limit=50&offset=0` | Owner's run history, maximum page size 100 |
+| POST, GET | `/credentials` | Create a header credential or list owned metadata |
+| PUT, DELETE | `/credentials/{id}` | Replace or delete an owned credential |
 | POST, GET | `/workflows/{id}/schedules` | Create or list cron schedules |
 | DELETE | `/schedules/{scheduleID}` | Deactivate a schedule |
 | POST | `/webhook/{workflowID}` | Queue a signed webhook run |
@@ -157,6 +173,12 @@ within five minutes of server time. Signatures authenticate requests but do not
 deduplicate delivery. See [security details](backend/docs/execution-security.md).
 
 ## Deployment and upgrades
+
+This release requires migration **15** before startup. Stop application instances,
+apply the migration once, then restart all instances together. It adds credential
+storage, checkpoint timestamps, and persisted HTTP retry classification/deadlines.
+Older workers do not honor these retry fields; do not mix worker versions. Rolling
+back migration 15 deletes stored credentials and the new checkpoint metadata.
 
 1. Provision PostgreSQL, restricted networking, TLS termination, and runtime secrets.
 2. Configure explicit browser origins, trusted proxies, and shared admission limits.
@@ -212,10 +234,41 @@ enforced. No external shell-script files are required.
 ## Current boundaries
 
 Execution is sequential within each DAG and has a 60-second deadline per worker
-execution. Delay nodes occupy workers. HTTP non-2xx responses are returned as node
-outputs (`success=false`), so workflows must branch on the result. Long-lived waits,
-configurable HTTP error classification, credential management, output retention,
-metrics, and tracing remain future work.
+execution. Delay nodes and retry waits occupy workers. Long-lived waits, OAuth,
+output retention, metrics, and tracing remain future work.
+
+### HTTP failures, mappings, and execution inspection
+
+HTTP nodes default to `error_policy: "output"`, preserving the existing behavior:
+non-2xx responses become outputs with `success=false`. Select `"fail"` to fail on
+non-2xx responses. Only 408, 429, and 5xx responses are retried under this policy;
+other HTTP statuses stop immediately. Transport errors retain the existing retry
+behavior. Retries remain opt-in (one attempt by default). `Retry-After` seconds or
+HTTP dates set a minimum wait, persisted across recovery. A wait exceeding the
+remaining execution deadline fails the run without an early retry. Retrying writes
+still requires destination support for idempotency.
+
+The inspector's input mapper selects upstream nodes and output fields. Mappings
+override top-level configuration fields and preserve JSON types:
+
+```json
+"inputs": {
+  "body": { "node_id": "parse_response", "path": ["parsed", "customer"] }
+}
+```
+
+Paths traverse objects and zero-based array indexes. The graph validator rejects
+non-upstream references; unavailable fields (including skipped sources) fail the
+node before its external action runs. The UI previews fields from the latest run.
+Credential IDs and HTTP error policies cannot be mapped. HTTP bodies accept JSON
+values as well as strings; the JSON parser accepts objects, arrays, and scalars.
+
+`GET /runs/{id}` includes persisted `nodes` with status, attempts, successful output,
+error, first start time, and latest checkpoint time. The canvas and run inspector
+poll active runs once per second. Nodes appear after their first attempt; absent
+nodes may be waiting, skipped, or never reached after a failure. Elapsed time spans
+attempts and retry waits. Older checkpoints have no start timestamp. These are
+checkpoint details, not streaming logs or a complete event history.
 
 
 ### Clerk and Google sign-in

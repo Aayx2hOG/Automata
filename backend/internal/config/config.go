@@ -12,12 +12,13 @@ import (
 )
 
 type Config struct {
-	Env       string          `mapstructure:"env"`
-	HTTP      HTTPConfig      `mapstructure:"http"`
-	Database  DatabaseConfig  `mapstructure:"database"`
-	Auth      AuthConfig      `mapstructure:"auth"`
-	Execution ExecutionConfig `mapstructure:"execution"`
-	Worker    WorkerConfig    `mapstructure:"worker"`
+	CredentialsEncryptionKey string          `mapstructure:"credentials_encryption_key"`
+	Env                      string          `mapstructure:"env"`
+	HTTP                     HTTPConfig      `mapstructure:"http"`
+	Database                 DatabaseConfig  `mapstructure:"database"`
+	Auth                     AuthConfig      `mapstructure:"auth"`
+	Execution                ExecutionConfig `mapstructure:"execution"`
+	Worker                   WorkerConfig    `mapstructure:"worker"`
 }
 
 type ExecutionConfig struct {
@@ -80,6 +81,7 @@ func load(envFiles ...string) (*Config, error) {
 	v.AddConfigPath(".")
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	v.AutomaticEnv()
+	v.SetDefault("credentials_encryption_key", "")
 
 	v.SetDefault("env", "development")
 	v.SetDefault("http.allowed_origins", "")

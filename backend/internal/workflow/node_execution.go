@@ -1,6 +1,7 @@
 package workflow
 
 import (
+	"errors"
 	"maps"
 	"time"
 
@@ -23,6 +24,13 @@ func (e *Engine) executeNode(ctx *node.ExecutionContext, definition models.Graph
 		if state != nil {
 			stored, err := state.Begin(ctx.Ctx, definition.ID, maxAttempts)
 			if err != nil {
+				var retry *node.RetryError
+				if errors.As(err, &retry) && retry.Retryable && retry.After > 0 {
+					if err := waitForRetry(ctx, retry.After); err != nil {
+						return nil, err
+					}
+					continue
+				}
 				return nil, err
 			}
 			if stored.Completed {
@@ -40,10 +48,15 @@ func (e *Engine) executeNode(ctx *node.ExecutionContext, definition models.Graph
 			if err != nil {
 				return nil, err
 			}
-			output, executionErr = impl.Execute(&node.ExecutionContext{
-				Ctx: ctx.Ctx, NodeID: definition.ID, Config: definition.Config,
-				Outputs: outputs, IdempotencyKey: key,
-			})
+			config, err := resolveConfig(definition, outputs)
+			if err != nil {
+				executionErr = &node.RetryError{Message: err.Error()}
+			} else {
+				output, executionErr = impl.Execute(&node.ExecutionContext{
+					Ctx: ctx.Ctx, NodeID: definition.ID, Config: config,
+					Outputs: outputs, IdempotencyKey: key,
+				})
+			}
 		}
 		if executionErr == nil {
 			if state != nil {
@@ -61,15 +74,28 @@ func (e *Engine) executeNode(ctx *node.ExecutionContext, definition models.Graph
 				return nil, err
 			}
 		}
-		if attempt >= maxAttempts {
+		var classified *node.RetryError
+		classifiedFailure := errors.As(executionErr, &classified)
+		if attempt >= maxAttempts || (classifiedFailure && !classified.Retryable) {
 			return nil, executionErr
 		}
-		timer := time.NewTimer(backoff)
-		select {
-		case <-ctx.Ctx.Done():
-			timer.Stop()
-			return nil, ctx.Ctx.Err()
-		case <-timer.C:
+		wait := backoff
+		if classifiedFailure && classified.After > wait {
+			wait = classified.After
 		}
+		if err := waitForRetry(ctx, wait); err != nil {
+			return nil, err
+		}
+	}
+}
+
+func waitForRetry(ctx *node.ExecutionContext, wait time.Duration) error {
+	timer := time.NewTimer(wait)
+	defer timer.Stop()
+	select {
+	case <-ctx.Ctx.Done():
+		return ctx.Ctx.Err()
+	case <-timer.C:
+		return nil
 	}
 }

@@ -2,12 +2,43 @@ export type RunStatus = 'pending' | 'running' | 'succeeded' | 'failed';
 export type TriggerType = 'manual' | 'webhook' | 'cron' | 'interval' | 'api';
 
 export interface GraphNode {
+	inputs?: Record<string, OutputReference>;
   retry?: { max_attempts: number; backoff_seconds: number };
   label?: string;
   id: string;
   type: string;
   config: Record<string, any>;
   position?: { x: number; y: number };
+}
+
+export interface OutputReference {
+  node_id: string;
+  path: string[];
+}
+
+export interface Credential {
+  id: string;
+  name: string;
+  host: string;
+  header: string;
+  updated_at: string;
+}
+
+export interface CredentialInput {
+  name: string;
+  host: string;
+  header: string;
+  value: string;
+}
+
+export interface NodeRun {
+  node_id: string;
+  status: 'running' | 'succeeded' | 'failed';
+  attempts: number;
+  output?: Record<string, unknown>;
+  error_message?: string;
+  started_at?: string;
+  updated_at: string;
 }
 
 export interface GraphEdge {
@@ -47,6 +78,7 @@ export interface WorkflowWithDetails extends Workflow {
 }
 
 export interface WorkflowRun {
+  nodes?: NodeRun[];
   id: string;
   workflow_id: string;
   workflow_version_id: string;

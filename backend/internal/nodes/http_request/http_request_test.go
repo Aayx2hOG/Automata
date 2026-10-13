@@ -2,12 +2,17 @@ package httprequest
 
 import (
 	"context"
+	"errors"
+	"github.com/Aayx2hOG/automata/internal/credentials"
 	"github.com/Aayx2hOG/automata/internal/node"
+	"github.com/google/uuid"
 	"io"
 	"net/http"
 	"net/netip"
+	"net/url"
 	"strings"
 	"testing"
+	"time"
 )
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
@@ -31,6 +36,76 @@ func TestBlockedDestinations(t *testing.T) {
 	if c, err := safeDial(context.Background(), "tcp", "127.0.0.1:80"); err == nil {
 		c.Close()
 		t.Fatal("dialed loopback")
+	}
+}
+
+func TestHTTPFailurePolicies(t *testing.T) {
+	for _, status := range []int{200, 302, 400, 401, 408, 429, 500, 503} {
+		for _, policy := range []string{"output", "fail"} {
+			n := New()
+			n.client.Transport = roundTripFunc(func(*http.Request) (*http.Response, error) {
+				return &http.Response{StatusCode: status, Header: http.Header{"Retry-After": []string{"3"}}, Body: io.NopCloser(strings.NewReader("private response"))}, nil
+			})
+			output, err := n.Execute(&node.ExecutionContext{Ctx: context.Background(), Config: map[string]any{"url": "https://example.com", "error_policy": policy}})
+			if policy == "output" || status == 200 {
+				if err != nil || output["status_code"] != status {
+					t.Fatalf("status=%d policy=%s output=%v err=%v", status, policy, output, err)
+				}
+				continue
+			}
+			var classified *node.RetryError
+			if !errors.As(err, &classified) || classified.Retryable != (status == 408 || status == 429 || status >= 500) || classified.After != 3*time.Second {
+				t.Fatalf("status=%d error=%v", status, err)
+			}
+			if strings.Contains(err.Error(), "private") {
+				t.Fatal("response leaked into error")
+			}
+		}
+	}
+}
+
+func TestCredentialHeaderAndOutputRedaction(t *testing.T) {
+	n := New()
+	n.client.Transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		if r.Header.Get("Authorization") != "Bearer top-secret" {
+			t.Fatal("missing stored credential")
+		}
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`{"auth":"Bearer top-secret","token":"top-secret"}`))}, nil
+	})
+	ctx := credentials.WithResolver(context.Background(), func(context.Context, uuid.UUID, *url.URL) (string, string, error) {
+		return "Authorization", "Bearer top-secret", nil
+	})
+	output, err := n.Execute(&node.ExecutionContext{Ctx: ctx, Config: map[string]any{"url": "https://example.com", "credential_id": uuid.NewString()}})
+	if err != nil || strings.Contains(output["body"].(string), "top-secret") {
+		t.Fatalf("output redaction failed: %v", err)
+	}
+}
+
+func TestCredentialRedirectIsNotFollowed(t *testing.T) {
+	n := New()
+	calls := 0
+	n.client.Transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		calls++
+		return &http.Response{StatusCode: 302, Header: http.Header{"Location": []string{"https://other.example.com"}}, Body: io.NopCloser(strings.NewReader("redirect")), Request: r}, nil
+	})
+	ctx := credentials.WithResolver(context.Background(), func(context.Context, uuid.UUID, *url.URL) (string, string, error) {
+		return "Authorization", "secret", nil
+	})
+	_, err := n.Execute(&node.ExecutionContext{Ctx: ctx, Config: map[string]any{"url": "https://example.com", "credential_id": uuid.NewString()}})
+	if err != nil || calls != 1 {
+		t.Fatalf("redirect followed: calls=%d err=%v", calls, err)
+	}
+}
+
+func TestRetryAfterDate(t *testing.T) {
+	now := time.Now().UTC().Truncate(time.Second)
+	if got := retryAfter(now.Add(5*time.Second).Format(http.TimeFormat), now); got != 5*time.Second {
+		t.Fatal(got)
+	}
+	for _, value := range []string{"invalid", "-5", "0"} {
+		if retryAfter(value, now) != 0 {
+			t.Fatalf("accepted %q", value)
+		}
 	}
 }
 func TestResponseLimit(t *testing.T) {

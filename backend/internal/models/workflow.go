@@ -28,12 +28,19 @@ type NodePosition struct {
 }
 
 type GraphNode struct {
-	Retry    *RetryPolicy   `json:"retry,omitempty"`
-	Position *NodePosition  `json:"position,omitempty"`
-	Label    string         `json:"label,omitempty"`
-	ID       string         `json:"id"`
-	Type     string         `json:"type"`
-	Config   map[string]any `json:"config"`
+	Inputs   map[string]OutputReference `json:"inputs,omitempty"`
+	Retry    *RetryPolicy               `json:"retry,omitempty"`
+	Position *NodePosition              `json:"position,omitempty"`
+	Label    string                     `json:"label,omitempty"`
+	ID       string                     `json:"id"`
+	Type     string                     `json:"type"`
+	Config   map[string]any             `json:"config"`
+}
+
+// OutputReference maps an upstream output into a top-level configuration field.
+type OutputReference struct {
+	NodeID string   `json:"node_id"`
+	Path   []string `json:"path"`
 }
 
 // RetryPolicy applies to this node only, including attempts after recovery.
@@ -76,6 +83,7 @@ const (
 )
 
 type WorkflowRun struct {
+	Nodes             []NodeRun      `json:"nodes,omitempty"`
 	ID                uuid.UUID      `json:"id"`
 	WorkflowID        uuid.UUID      `json:"workflow_id"`
 	WorkflowVersionID uuid.UUID      `json:"workflow_version_id"`
@@ -86,6 +94,16 @@ type WorkflowRun struct {
 	StartedAt         *time.Time     `json:"started_at,omitempty"`
 	FinishedAt        *time.Time     `json:"finished_at,omitempty"`
 	CreatedAt         time.Time      `json:"created_at"`
+}
+
+type NodeRun struct {
+	NodeID       string         `json:"node_id"`
+	Status       string         `json:"status"`
+	Attempts     int            `json:"attempts"`
+	Output       map[string]any `json:"output,omitempty"`
+	ErrorMessage string         `json:"error_message,omitempty"`
+	StartedAt    *time.Time     `json:"started_at,omitempty"`
+	UpdatedAt    time.Time      `json:"updated_at"`
 }
 
 type Schedule struct {

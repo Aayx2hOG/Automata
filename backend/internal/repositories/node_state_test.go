@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/Aayx2hOG/automata/internal/models"
 	"github.com/Aayx2hOG/automata/internal/node"
@@ -66,6 +67,67 @@ func TestRecoveryRestoresCompletedNodesAndAttemptBudget(t *testing.T) {
 	}
 	if first != 1 || second != 2 {
 		t.Fatalf("attempts = %d,%d", first, second)
+	}
+}
+
+func TestInspectionAndPermanentFailureSurviveRecovery(t *testing.T) {
+	r, schedule := outboxFixture(t)
+	ctx := context.Background()
+	id := enqueueFixture(t, r, schedule)
+	claim, err := r.claimRun(ctx, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state := &runNodeState{repository: r, claim: claim}
+	if _, err := state.Begin(ctx, "request", 5); err != nil {
+		t.Fatal(err)
+	}
+	if err := state.Fail(ctx, "request", &node.RetryError{Message: "HTTP 401"}); err != nil {
+		t.Fatal(err)
+	}
+	r.releaseRun(claim)
+	claim, err = r.claimRun(ctx, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state = &runNodeState{repository: r, claim: claim}
+	if _, err := state.Begin(ctx, "request", 5); err == nil {
+		t.Fatal("restarted permanent failure")
+	}
+	run, err := NewWorkflowRunRepository(r.pool).GetByID(ctx, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(run.Nodes) != 1 || run.Nodes[0].Attempts != 1 || run.Nodes[0].Status != "failed" || run.Nodes[0].StartedAt == nil || run.Nodes[0].ErrorMessage != "HTTP 401" {
+		t.Fatalf("inspection: %+v", run.Nodes)
+	}
+}
+
+func TestRetryAfterSurvivesRecovery(t *testing.T) {
+	r, schedule := outboxFixture(t)
+	ctx := context.Background()
+	id := enqueueFixture(t, r, schedule)
+	claim, err := r.claimRun(ctx, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state := &runNodeState{repository: r, claim: claim}
+	if _, err := state.Begin(ctx, "request", 3); err != nil {
+		t.Fatal(err)
+	}
+	if err := state.Fail(ctx, "request", &node.RetryError{Message: "HTTP 429", Retryable: true, After: time.Hour}); err != nil {
+		t.Fatal(err)
+	}
+	r.releaseRun(claim)
+	claim, err = r.claimRun(ctx, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state = &runNodeState{repository: r, claim: claim}
+	attempt, err := state.Begin(ctx, "request", 3)
+	var retry *node.RetryError
+	if !errors.As(err, &retry) || retry.After <= 0 || attempt.Number != 1 {
+		t.Fatalf("retry started early: %+v %v", attempt, err)
 	}
 }
 

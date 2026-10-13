@@ -74,6 +74,19 @@ func NewRouter(
 	})
 
 	workflowHandler := handlers.NewWorkflowHandler(workflowService, logger)
+	r.Route("/credentials", func(r chi.Router) {
+		r.Use(requireAuth)
+		var vaultHandler http.HandlerFunc
+		if workflowService != nil {
+			vaultHandler = handlers.CredentialHandler(workflowService.Credentials, logger)
+		} else {
+			vaultHandler = handlers.CredentialHandler(nil, logger)
+		}
+		r.Get("/", vaultHandler)
+		r.Post("/", vaultHandler)
+		r.Put("/{id}", vaultHandler)
+		r.Delete("/{id}", vaultHandler)
+	})
 	r.Route("/workflows", func(r chi.Router) {
 		r.Use(requireAuth)
 		r.Post("/", workflowHandler.Create)

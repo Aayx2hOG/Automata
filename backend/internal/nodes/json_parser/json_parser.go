@@ -31,7 +31,7 @@ func (n *Node) Execute(ec *node.ExecutionContext) (map[string]any, error) {
 		return nil, fmt.Errorf("json_parser: %s.%s is not a string", sourceNode, sourceField)
 	}
 
-	parsed := []any{}
+	var parsed any
 	if err := json.Unmarshal([]byte(rawStr), &parsed); err != nil {
 		return nil, fmt.Errorf("json_parser: invalid JSON in %s.%s: %w", sourceNode, sourceField, err)
 	}

@@ -33,6 +33,7 @@ import {
 import { GraphNode, GraphEdge, WorkflowGraph, WorkflowRun } from '../../types';
 
 import { api } from '../../lib/api';
+import { NodeRunDetails } from '../runs/NodeRunDetails';
 
 const nodeTypes = {
   custom: CustomNode,
@@ -98,6 +99,7 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
           type: n.type,
           config: n.config || {},
           retry: n.retry,
+          inputs: n.inputs,
         },
       }));
     }
@@ -228,6 +230,7 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
       type: (n.data as any).type || 'http_request',
       config: (n.data as any).config || {},
       retry: (n.data as any).retry,
+      inputs: (n.data as unknown as CustomNodeData).inputs,
       label: (n.data as any).label,
       position: { x: n.position.x, y: n.position.y },
     }));
@@ -360,7 +363,7 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
         {/* Center React Flow Canvas */}
         <div className="flex-1 relative">
           <ReactFlow
-            nodes={nodes}
+            nodes={nodes.map(node => ({ ...node, data: { ...node.data, status: runResult?.nodes?.find(step => step.node_id === node.id)?.status } }))}
             edges={edges}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
@@ -400,7 +403,9 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
                 </div>
               )}
 
-              {runResult.outputs && (
+              <NodeRunDetails nodes={runResult.nodes} />
+
+              {!runResult.nodes?.length && runResult.outputs && (
                 <div className="text-xs font-mono bg-[#0d1017] p-2.5 rounded text-emerald-400 max-h-32 overflow-y-auto">
                   <pre>{JSON.stringify(runResult.outputs, null, 2)}</pre>
                 </div>
@@ -414,6 +419,16 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
           <NodeInspectorDrawer
             key={selectedNode.id}
             node={selectedNode}
+            sources={getGraphData().nodes.filter(candidate => {
+              const visited = new Set<string>();
+              const upstream = (id: string): boolean => edges.some(edge => {
+                if (edge.target !== id || visited.has(edge.source)) return false;
+                visited.add(edge.source);
+                return edge.source === candidate.id || upstream(edge.source);
+              });
+              return candidate.id !== selectedNode.id && upstream(selectedNode.id);
+            })}
+            outputs={runResult?.outputs || Object.fromEntries((runResult?.nodes || []).filter(step => step.output).map(step => [step.node_id, step.output]))}
             onClose={() => setSelectedNode(null)}
             onUpdate={handleUpdateNode}
             onDelete={handleDeleteNode}

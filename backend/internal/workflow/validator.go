@@ -42,6 +42,11 @@ func ValidatorGraph(graph models.WorkflowGraph) ValidationResult {
 
 	nodeIDs := make(map[string]bool, len(graph.Nodes))
 	for _, node := range graph.Nodes {
+		if node.Type == "http_request" {
+			if policy, exists := node.Config["error_policy"]; exists && policy != "output" && policy != "fail" {
+				errs = append(errs, ValidationError{NodeID: node.ID, Message: "HTTP error_policy must be output or fail"})
+			}
+		}
 		if len(node.ID) > 255 {
 			errs = append(errs, ValidationError{Message: "node id must not exceed 255 bytes"})
 		}
@@ -81,6 +86,9 @@ func ValidatorGraph(graph models.WorkflowGraph) ValidationResult {
 				Message: "workflow graph contains a cycle",
 			})
 		}
+	}
+	if len(errs) == 0 {
+		errs = append(errs, validateInputs(graph)...)
 	}
 	return ValidationResult{
 		Valid:  len(errs) == 0,

@@ -47,13 +47,22 @@ Open http://localhost:3000 and create an account. The development server proxies
 
 Create a **Blank Canvas** workflow to try the complete flow without external services: edit, save, execute, inspect outputs, and reload. Schedules are configured from the Schedules tab, not as graph nodes. Webhook testing signs the exact JSON body using the workflow's secret; generated shell commands prompt for that secret.
 
-The execution screen shows the latest 50 runs and refreshes automatically. Per-node outputs are shown after execution; streaming node logs are not implemented.
+The execution screen shows the latest 50 runs and refreshes automatically. Open a
+run to inspect live node checkpoints, attempts, elapsed time, outputs, and errors.
+The canvas also displays node status while polling active runs. Streaming logs
+are not implemented.
+
+The node inspector supports upstream field mappings with latest-run previews,
+retry settings, and opt-in HTTP failure classification. HTTP nodes can create,
+select, replace, or delete stored header credentials when the backend vault key is
+configured. Apply migration 15 before starting this release.
 
 ## Checks
 
 ```sh
 npm run build
 npm run lint
+npx playwright test tests/editor.spec.ts
 npx playwright install --with-deps chromium
 # Requires the API and migrated database running:
 npm run test:e2e

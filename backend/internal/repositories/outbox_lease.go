@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/Aayx2hOG/automata/internal/credentials"
 	"github.com/Aayx2hOG/automata/internal/models"
 	"github.com/Aayx2hOG/automata/internal/node"
 	"github.com/google/uuid"
@@ -18,6 +19,7 @@ const outboxDatabaseTimeout = 5 * time.Second
 var ErrLeaseLost = errors.New("workflow execution lease lost")
 
 type claimedRun struct {
+	ownerID   uuid.UUID
 	id, token uuid.UUID
 	graph     models.WorkflowGraph
 	seed      map[string]interface{}
@@ -63,13 +65,14 @@ func (r *pgScheduleRepository) claimRun(ctx context.Context, id uuid.UUID) (*cla
 	defer tx.Rollback(context.Background())
 	claim := &claimedRun{token: uuid.New()}
 	var graphJSON, seedJSON []byte
-	err = tx.QueryRow(ctx, `SELECT o.run_id, v.graph, o.seed_data FROM schedule_outbox o
+	err = tx.QueryRow(ctx, `SELECT o.run_id, v.graph, o.seed_data, w.owner_id FROM schedule_outbox o
  JOIN workflow_runs r ON r.id=o.run_id
+ JOIN workflows w ON w.id=r.workflow_id
  JOIN workflow_versions v ON v.id=r.workflow_version_id
  WHERE ($1::uuid='00000000-0000-0000-0000-000000000000' OR o.run_id=$1)
  AND (o.lease_until IS NULL OR o.lease_until <= clock_timestamp())
  ORDER BY o.created_at, o.run_id LIMIT 1 FOR UPDATE OF o SKIP LOCKED`, id).
-		Scan(&claim.id, &graphJSON, &seedJSON)
+		Scan(&claim.id, &graphJSON, &seedJSON, &claim.ownerID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
@@ -219,6 +222,7 @@ func (r *pgScheduleRepository) ProcessRun(ctx context.Context, id uuid.UUID, exe
 	}()
 	defer func() { stopHeartbeat(); <-done }()
 	execCtx = node.WithState(execCtx, &runNodeState{repository: r, claim: claim})
+	execCtx = credentials.WithOwner(execCtx, claim.ownerID)
 	outputs, executionErr := execute(execCtx, claim.graph, claim.seed)
 	stopHeartbeat()
 	<-done

@@ -6,9 +6,11 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"net/url"
 	"strconv"
 	"time"
 
+	"github.com/Aayx2hOG/automata/internal/credentials"
 	"github.com/Aayx2hOG/automata/internal/models"
 	"github.com/Aayx2hOG/automata/internal/node"
 	"github.com/Aayx2hOG/automata/internal/repositories"
@@ -22,11 +24,12 @@ const (
 )
 
 type WorkflowService struct {
-	workflows repositories.WorkflowRepository
-	versions  repositories.WorkflowVersionRepository
-	runs      repositories.WorkflowRunRepository
-	engine    *workflow.Engine
-	logger    *zap.Logger
+	Credentials *credentials.Vault
+	workflows   repositories.WorkflowRepository
+	versions    repositories.WorkflowVersionRepository
+	runs        repositories.WorkflowRunRepository
+	engine      *workflow.Engine
+	logger      *zap.Logger
 }
 
 func NewWorkflowService(
@@ -137,6 +140,12 @@ func flattenOutputs(outputs map[string]map[string]interface{}) map[string]interf
 }
 
 func (s *WorkflowService) ExecuteDurableGraph(ctx context.Context, graph models.WorkflowGraph, seed map[string]interface{}) (map[string]interface{}, error) {
+	if s.Credentials != nil {
+		owner := credentials.Owner(ctx)
+		ctx = credentials.WithResolver(ctx, func(ctx context.Context, id uuid.UUID, destination *url.URL) (string, string, error) {
+			return s.Credentials.Resolve(ctx, owner, id, destination)
+		})
+	}
 	execCtx, cancel := context.WithTimeout(ctx, defaultExecutionTimeout)
 	defer cancel()
 	var result *workflow.ExecutionResult

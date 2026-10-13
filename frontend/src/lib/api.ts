@@ -1,4 +1,4 @@
-import { AuthTokens, Schedule, User, Workflow, WorkflowGraph, WorkflowRun, WorkflowVersion } from '../types';
+import { AuthTokens, Credential, CredentialInput, Schedule, User, Workflow, WorkflowGraph, WorkflowRun, WorkflowVersion } from '../types';
 
 export const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
 
@@ -164,6 +164,14 @@ export const api = {
     get: async (id: string): Promise<WorkflowRun> => {
       return request<WorkflowRun>(`/runs/${id}`);
     },
+  },
+
+  credentials: {
+    list: (): Promise<Credential[]> => request('/credentials'),
+    save: (input: CredentialInput, id?: string): Promise<Credential> => request(id ? `/credentials/${id}` : '/credentials', {
+      method: id ? 'PUT' : 'POST', body: JSON.stringify(input),
+    }),
+    delete: (id: string): Promise<void> => request(`/credentials/${id}`, { method: 'DELETE' }),
   },
 
   schedules: {

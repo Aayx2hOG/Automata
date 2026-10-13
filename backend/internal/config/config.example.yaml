@@ -4,6 +4,7 @@
 # never commit actual secrets to this file or config.yaml.
 
 env: development # development | staging | production
+credentials_encryption_key: "" # optional, 64 hex characters; keep stable and back up separately
 
 http:
   port: 8080

@@ -61,6 +61,27 @@ func (r *pgWorkflowRunRepository) GetByID(ctx context.Context, id uuid.UUID) (*m
 	if errMsg != nil {
 		run.ErrorMessage = *errMsg
 	}
+	rows, err := r.pool.Query(ctx, `SELECT node_id,status,attempts,output,COALESCE(error_message,''),started_at,updated_at FROM workflow_node_runs WHERE run_id=$1 ORDER BY started_at NULLS LAST,node_id`, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var n models.NodeRun
+		var data []byte
+		if err := rows.Scan(&n.NodeID, &n.Status, &n.Attempts, &data, &n.ErrorMessage, &n.StartedAt, &n.UpdatedAt); err != nil {
+			return nil, err
+		}
+		if len(data) > 0 {
+			if err := json.Unmarshal(data, &n.Output); err != nil {
+				return nil, err
+			}
+		}
+		run.Nodes = append(run.Nodes, n)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 
 	return &run, nil
 }

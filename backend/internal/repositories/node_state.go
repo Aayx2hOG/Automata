@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/Aayx2hOG/automata/internal/node"
 	"github.com/jackc/pgx/v5"
@@ -57,15 +58,21 @@ func (s *runNodeState) Begin(ctx context.Context, nodeID string, maxAttempts int
 		var status string
 		var output []byte
 		var message *string
-		err := tx.QueryRow(ctx, `SELECT status, attempts, output, error_message
+		var terminal bool
+		var retryAt *time.Time
+		err := tx.QueryRow(ctx, `SELECT status, attempts, output, error_message, terminal_failure, retry_at
  FROM workflow_node_runs WHERE run_id=$1 AND node_id=$2`, s.claim.id, nodeID).
-			Scan(&status, &attempt.Number, &output, &message)
+			Scan(&status, &attempt.Number, &output, &message, &terminal, &retryAt)
 		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 			return err
 		}
 		if status == "succeeded" {
 			attempt.Completed = true
 			return json.Unmarshal(output, &attempt.Output)
+		}
+		if terminal && message != nil {
+			exhausted = &node.RetryError{Message: *message}
+			return nil
 		}
 		if attempt.Number >= maxAttempts {
 			// A running attempt may have performed an external effect before a
@@ -76,9 +83,13 @@ func (s *runNodeState) Begin(ctx context.Context, nodeID string, maxAttempts int
 			}
 			return nil
 		}
+		if retryAt != nil && time.Now().Before(*retryAt) {
+			exhausted = &node.RetryError{Message: "waiting to retry", Retryable: true, After: time.Until(*retryAt)}
+			return nil
+		}
 		attempt.Number++
-		_, err = tx.Exec(ctx, `INSERT INTO workflow_node_runs(run_id,node_id,status,attempts)
- VALUES($1,$2,'running',$3) ON CONFLICT(run_id,node_id) DO UPDATE
+		_, err = tx.Exec(ctx, `INSERT INTO workflow_node_runs(run_id,node_id,status,attempts,started_at)
+ VALUES($1,$2,'running',$3,clock_timestamp()) ON CONFLICT(run_id,node_id) DO UPDATE
  SET status='running', attempts=$3, error_message=NULL, updated_at=clock_timestamp()`, s.claim.id, nodeID, attempt.Number)
 		return err
 	})
@@ -101,9 +112,16 @@ func (s *runNodeState) Complete(ctx context.Context, nodeID string, output map[s
 }
 
 func (s *runNodeState) Fail(ctx context.Context, nodeID string, failure error) error {
+	var classified *node.RetryError
+	terminal := errors.As(failure, &classified) && !classified.Retryable
+	var retryAt *time.Time
+	if classified != nil && classified.After > 0 {
+		at := time.Now().Add(classified.After)
+		retryAt = &at
+	}
 	return s.transaction(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		_, err := tx.Exec(ctx, `UPDATE workflow_node_runs SET status='failed', error_message=$3,
- updated_at=clock_timestamp() WHERE run_id=$1 AND node_id=$2`, s.claim.id, nodeID, failure.Error())
+ terminal_failure=$4, retry_at=$5, updated_at=clock_timestamp() WHERE run_id=$1 AND node_id=$2`, s.claim.id, nodeID, failure.Error(), terminal, retryAt)
 		return err
 	})
 }

@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { PlayCircle, CheckCircle2, XCircle, Clock, AlertCircle, RefreshCw, Code2, ChevronRight } from 'lucide-react';
 import { WorkflowRun } from '../../types';
+import { api } from '../../lib/api';
+import { NodeRunDetails } from './NodeRunDetails';
 
 interface RunsListProps {
   runs: WorkflowRun[];
@@ -12,7 +14,27 @@ export const RunsList: React.FC<RunsListProps> = ({ runs, onRefresh }) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
   const feedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const selectedRun = runs.find(run => run.id === selectedId);
+  const [detail, setDetail] = useState<WorkflowRun | null>(null);
+  const [detailError, setDetailError] = useState('');
+  const selectedRun = detail?.id === selectedId ? detail : runs.find(run => run.id === selectedId);
+
+  useEffect(() => {
+    if (!selectedId) return;
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const poll = async () => {
+      try {
+        const run = await api.runs.get(selectedId);
+        if (stopped) return;
+        setDetail(run); setDetailError('');
+        if (run.status === 'pending' || run.status === 'running') timer = setTimeout(poll, 1000);
+      } catch (error) {
+        if (!stopped) { setDetailError((error as Error).message); timer = setTimeout(poll, 3000); }
+      }
+    };
+    void poll();
+    return () => { stopped = true; clearTimeout(timer); };
+  }, [selectedId]);
 
   useEffect(() => () => {
     if (feedbackTimer.current) clearTimeout(feedbackTimer.current);
@@ -135,7 +157,7 @@ export const RunsList: React.FC<RunsListProps> = ({ runs, onRefresh }) => {
                     <td className="px-5 py-4 text-gray-400">{new Date(run.created_at).toLocaleString()}</td>
                     <td className="p-0 text-right">
                       <button
-                        onClick={() => setSelectedId(run.id)}
+                        onClick={() => { setSelectedId(run.id); setDetailError(''); }}
                         className="flex w-full items-center justify-end space-x-1 px-5 py-4 text-[#ff6d5a] hover:bg-[#ff6d5a]/10 hover:text-[#ff8575] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#ff6d5a] font-sans font-bold transition-colors"
                       >
                         <span>View Outputs</span>
@@ -189,7 +211,9 @@ export const RunsList: React.FC<RunsListProps> = ({ runs, onRefresh }) => {
             )}
 
             {/* Node Outputs */}
-            <div className="space-y-2">
+            {detailError && <p role="alert" className="text-xs text-rose-300">{detailError}</p>}
+            <NodeRunDetails nodes={selectedRun.nodes} />
+            {!selectedRun.nodes?.length && <div className="space-y-2">
               <h4 className="text-xs font-bold text-gray-300 uppercase tracking-wider">Node Step Outputs (JSON)</h4>
               <div className="p-4 rounded-xl bg-[#0d1017] border border-white/10 text-emerald-400 font-mono text-xs max-h-64 overflow-y-auto">
                 {selectedRun.outputs ? (
@@ -198,7 +222,7 @@ export const RunsList: React.FC<RunsListProps> = ({ runs, onRefresh }) => {
                   <span className="text-gray-500 italic">No node output object recorded.</span>
                 )}
               </div>
-            </div>
+            </div>}
           </div>
         </div>
       )}

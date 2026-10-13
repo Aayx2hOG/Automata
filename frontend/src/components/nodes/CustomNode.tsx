@@ -1,4 +1,5 @@
 import React, { memo } from 'react';
+import { GraphNode } from '../../types';
 import { Handle, Position, NodeProps } from '@xyflow/react';
 import {
   Webhook,
@@ -15,6 +16,8 @@ import {
 } from 'lucide-react';
 
 export interface CustomNodeData {
+  inputs?: GraphNode['inputs'];
+  retry?: GraphNode['retry'];
   label?: string;
   type: string;
   config?: Record<string, any>;

@@ -38,8 +38,9 @@ once: destinations must honor the key, and an interrupted uncheckpointed request
 may already have succeeded. Retries are opt-in per node and default to one attempt.
 Review destination idempotency guarantees before enabling retries for writes.
 
-HTTP non-2xx responses remain normal node outputs with `success=false`; branch on
-the result as appropriate. They do not automatically produce a retryable error.
+HTTP non-2xx responses default to normal node outputs with `success=false`.
+Opt into `error_policy: "fail"` to classify 408, 429, and 5xx as retryable failures
+and other non-2xx statuses as permanent failures. Retry budgets still apply.
 
 ## Proxy trust and resource limits
 
@@ -62,7 +63,15 @@ limits, TLS, and network access controls.
 ## Sensitive data
 
 Graph configuration, node outputs, webhook payloads, and webhook secrets are
-stored in PostgreSQL without application-level encryption. The former
-`CREDENTIALS_ENCRYPTION_KEY` variable did not implement encryption and has been
-removed. Restrict database and backup access. Managed credential references,
-secret redaction, and data-retention policies are not implemented yet.
+stored in PostgreSQL without application-level encryption. Restrict database and
+backup access. Data-retention policies are not implemented yet.
+
+Migration 15 adds an owner-scoped header credential vault. When configured with a
+64-character hex `CREDENTIALS_ENCRYPTION_KEY`, it encrypts values using AES-256-GCM
+with owner and credential IDs as authenticated data. Metadata endpoints never
+return values. Execution resolves references under the workflow owner's identity;
+only the configured HTTPS host can receive a credential, and redirects are disabled.
+Literal and JSON-escaped secret values (plus Bearer/Basic token portions) are
+redacted from response bodies before persistence or downstream execution. Arbitrary
+encodings, inline secrets, and other sensitive payload data are outside this filter.
+Keep the encryption key stable and back it up separately from the database.

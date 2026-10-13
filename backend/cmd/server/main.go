@@ -13,6 +13,7 @@ import (
 	"github.com/Aayx2hOG/automata/internal/api"
 	"github.com/Aayx2hOG/automata/internal/auth"
 	"github.com/Aayx2hOG/automata/internal/config"
+	"github.com/Aayx2hOG/automata/internal/credentials"
 	"github.com/Aayx2hOG/automata/internal/database"
 	"github.com/Aayx2hOG/automata/internal/queue"
 	"github.com/Aayx2hOG/automata/internal/repositories"
@@ -47,6 +48,14 @@ func main() {
 	}
 	defer pool.Close()
 	logger.Info("Connected to Postgres")
+	var executionSchemaReady bool
+	err = pool.QueryRow(ctx, `SELECT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = current_schema() AND table_name = 'workflow_node_runs' AND column_name = 'retry_at'
+    )`).Scan(&executionSchemaReady)
+	if err != nil || !executionSchemaReady {
+		logger.Fatal("execution inspection requires migration 15 on the database selected by DATABASE_URL; apply migrations before starting the API")
+	}
 
 	userRepo := repositories.NewUserRepository(pool)
 	refreshTokenRepo := repositories.NewRefreshTokenRepository(pool)
@@ -79,6 +88,12 @@ func main() {
 	nodeRegistry := workflow.NewRegistry(logger)
 	engine := workflow.NewEngine(nodeRegistry)
 	workflowService := services.NewWorkflowService(workflowRepo, workflowVersionRepo, workflowRunRepo, engine, logger)
+	if cfg.CredentialsEncryptionKey != "" {
+		workflowService.Credentials, err = credentials.New(pool, cfg.CredentialsEncryptionKey)
+		if err != nil {
+			logger.Fatal("credential vault configuration failed", zap.Error(err))
+		}
+	}
 
 	workerCtx, cancelWorkers := context.WithCancel(context.Background())
 	defer cancelWorkers()

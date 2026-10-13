@@ -79,14 +79,19 @@ Every node defaults to one attempt. To enable retries, publish a graph node with
 
 `max_attempts` includes the first attempt and must be 1–5. Fixed backoff must be
 0–30 seconds. Only the failed node repeats. The retry budget persists across worker
-restarts. The backoff timer is in memory; recovery may retry immediately. All nodes
+restarts. Fixed backoff is in memory; recovery may skip that delay. HTTP
+`Retry-After` deadlines are persisted and cannot be skipped by recovery. All nodes
 and retries share the existing 60-second deadline for that worker execution;
 recovery starts a new deadline. Delay and backoff currently occupy a worker.
 
-Retry policies apply to node execution errors. HTTP 4xx/5xx responses currently
-produce normal outputs with `success=false`; they do not automatically trigger a
-retry. Configure a condition node to handle those responses. The visual editor
-preserves retry policies loaded from the API; it does not yet offer a retry editor.
+Retry policies apply to node execution errors. HTTP nodes default to
+`error_policy: "output"`, returning non-2xx responses as outputs with
+`success=false`. With `error_policy: "fail"`, non-2xx responses fail the node;
+408, 429, and 5xx are retryable, while other statuses stop immediately, including
+after worker recovery. Retry-After seconds and HTTP dates set the minimum wait.
+Waits beyond the execution deadline fail without retrying early. The visual
+inspector edits both retry settings and HTTP error policy. Migration 15 is required;
+stop old workers before applying it and deploying the new release.
 
 ## External effects and idempotency
 
