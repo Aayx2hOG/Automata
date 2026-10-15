@@ -1,299 +1,119 @@
-import React, { useState } from 'react';
-import {
-  ArrowRight,
-  Webhook,
-  Clock,
-  Globe,
-  GitFork,
-  Terminal,
-  ShieldCheck,
-  Zap,
-  CheckCircle2,
-  Layers,
-  Code2,
-  Activity,
-  Cpu,
-  Plus,
-} from 'lucide-react';
-import { Workflow } from '../../types';
+import { ArrowRight, Clock, GitBranch, Plus, Webhook } from 'lucide-react';
+import { Workflow, WorkflowRun } from '../../types';
 
 interface LandingPageProps {
   workflows: Workflow[];
+  runs: WorkflowRun[];
+  loading?: boolean;
   onLaunchStudio: () => void;
-  onOpenWorkflow: (wf: Workflow) => void;
+  onOpenWorkflow: (workflow: Workflow) => void;
   onNavigateTab: (tab: 'workflows' | 'runs' | 'schedules' | 'webhooks') => void;
 }
 
-export const LandingPage: React.FC<LandingPageProps> = ({
-  workflows,
-  onLaunchStudio,
-  onNavigateTab,
-}) => {
-  const [activeInteractiveNode, setActiveInteractiveNode] = useState<'webhook' | 'http' | 'condition' | 'logger'>('webhook');
+const statusColor = {
+  pending: 'text-amber-300 bg-amber-400/10',
+  running: 'text-sky-300 bg-sky-400/10',
+  succeeded: 'text-emerald-300 bg-emerald-400/10',
+  failed: 'text-rose-300 bg-rose-400/10',
+};
+
+export function LandingPage({ workflows, runs, loading, onLaunchStudio, onOpenWorkflow, onNavigateTab }: LandingPageProps) {
+  const recentWorkflows = [...workflows].sort((a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at)).slice(0, 4);
+  const recentRuns = [...runs].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at)).slice(0, 5);
+  const failedRuns = runs.filter(run => run.status === 'failed').length;
 
   return (
-    <div className="space-y-12 py-2">
-      {/* Hero Section */}
-      <section className="relative rounded-3xl bg-[#161a23] border border-white/10 p-8 md:p-12 shadow-2xl overflow-hidden">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center relative z-10">
-          {/* Left Text */}
-          <div className="lg:col-span-7 space-y-6">
-            <div className="inline-flex items-center space-x-2 px-3 py-1.5 rounded-full bg-[#ff6d5a]/10 border border-[#ff6d5a]/30 text-[#ff6d5a] text-xs font-bold">
-              <Zap size={14} className="text-[#ff6d5a]" />
-              <span>n8n-Inspired Workflow Automation Engine</span>
-            </div>
-
-            <h1 className="text-4xl md:text-5xl font-extrabold text-white tracking-tight leading-tight">
-              Build & Automate Resilient DAG Node Graphs.
-            </h1>
-
-            <p className="text-base text-gray-300 leading-relaxed max-w-xl">
-              Automata gives you n8n-style visual workflow building combined with Temporal-grade durable graph execution. Connect Webhooks, HTTP Requests, Conditions, and Cron triggers into clean automation pipelines.
-            </p>
-
-            {/* CTAs */}
-            <div className="flex flex-wrap items-center gap-4 pt-2">
-              <button
-                onClick={onLaunchStudio}
-                className="flex items-center space-x-2 px-6 py-3.5 rounded-xl bg-gradient-to-r from-[#ff6d5a] to-[#ea4e43] hover:from-[#ff8575] hover:to-[#ff6d5a] text-white font-bold text-sm shadow-xl shadow-[#ff6d5a]/30 transition-all hover:scale-105 active:scale-95 group"
-              >
-                <Plus size={18} />
-                <span>Create Workflow</span>
-                <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
-              </button>
-
-              <button
-                onClick={() => onNavigateTab('webhooks')}
-                className="flex items-center space-x-2 px-5 py-3.5 rounded-xl bg-[#0d1017] hover:bg-[#1a202c] text-gray-200 font-semibold text-sm border border-white/10 transition-colors"
-              >
-                <Webhook size={16} className="text-[#ff6d5a]" />
-                <span>Webhook Endpoints</span>
-              </button>
-            </div>
-
-            {/* Metrics */}
-            <div className="grid grid-cols-3 gap-4 pt-6 border-t border-white/10 max-w-lg">
-              <div>
-                <div className="text-2xl font-extrabold text-white">{workflows.length}</div>
-                <div className="text-xs text-gray-400 font-semibold">Active Workflows</div>
-              </div>
-              <div>
-                <div className="text-2xl font-extrabold text-emerald-400">100%</div>
-                <div className="text-xs text-gray-400 font-semibold">Cycle Validated</div>
-              </div>
-              <div>
-                <div className="text-2xl font-extrabold text-[#ff6d5a]">0ms</div>
-                <div className="text-xs text-gray-400 font-semibold">Trigger Latency</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Right n8n Flow Demo Card */}
-          <div className="lg:col-span-5 bg-[#0d1017] border border-white/10 rounded-2xl p-5 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-white/10 pb-3">
-              <div className="flex items-center space-x-2">
-                <div className="w-3 h-3 rounded-full bg-[#ff6d5a] animate-pulse" />
-                <span className="text-xs font-mono font-bold text-gray-200">N8N NODE FLOW PREVIEW</span>
-              </div>
-              <span className="text-[10px] font-mono text-[#ff6d5a] px-2 py-0.5 rounded bg-[#ff6d5a]/10 border border-[#ff6d5a]/30 font-bold">
-                Interactive
-              </span>
-            </div>
-
-            {/* Interactive Node Flow Grid */}
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                onClick={() => setActiveInteractiveNode('webhook')}
-                className={`p-3 rounded-xl border text-left transition-all ${
-                  activeInteractiveNode === 'webhook'
-                    ? 'bg-[#ff6d5a]/20 border-[#ff6d5a] ring-1 ring-[#ff6d5a]'
-                    : 'bg-[#161a23] border-white/10 hover:border-white/20'
-                }`}
-              >
-                <div className="flex items-center space-x-2 text-[#ff6d5a] font-bold text-xs mb-1">
-                  <Webhook size={14} />
-                  <span>1. Webhook</span>
-                </div>
-                <div className="text-[11px] text-gray-300 font-mono">POST /webhook/id</div>
-              </button>
-
-              <button
-                onClick={() => setActiveInteractiveNode('http')}
-                className={`p-3 rounded-xl border text-left transition-all ${
-                  activeInteractiveNode === 'http'
-                    ? 'bg-cyan-950/60 border-cyan-500 ring-1 ring-cyan-500'
-                    : 'bg-[#161a23] border-white/10 hover:border-white/20'
-                }`}
-              >
-                <div className="flex items-center space-x-2 text-cyan-400 font-bold text-xs mb-1">
-                  <Globe size={14} />
-                  <span>2. HTTP API</span>
-                </div>
-                <div className="text-[11px] text-gray-300 font-mono">GET /api/status</div>
-              </button>
-
-              <button
-                onClick={() => setActiveInteractiveNode('condition')}
-                className={`p-3 rounded-xl border text-left transition-all ${
-                  activeInteractiveNode === 'condition'
-                    ? 'bg-amber-950/60 border-amber-500 ring-1 ring-amber-500'
-                    : 'bg-[#161a23] border-white/10 hover:border-white/20'
-                }`}
-              >
-                <div className="flex items-center space-x-2 text-amber-400 font-bold text-xs mb-1">
-                  <GitFork size={14} />
-                  <span>3. Condition</span>
-                </div>
-                <div className="text-[11px] text-gray-300 font-mono">status == 200</div>
-              </button>
-
-              <button
-                onClick={() => setActiveInteractiveNode('logger')}
-                className={`p-3 rounded-xl border text-left transition-all ${
-                  activeInteractiveNode === 'logger'
-                    ? 'bg-blue-950/60 border-blue-500 ring-1 ring-blue-500'
-                    : 'bg-[#161a23] border-white/10 hover:border-white/20'
-                }`}
-              >
-                <div className="flex items-center space-x-2 text-blue-400 font-bold text-xs mb-1">
-                  <Terminal size={14} />
-                  <span>4. Logger</span>
-                </div>
-                <div className="text-[11px] text-gray-300 font-mono">Log execution</div>
-              </button>
-            </div>
-
-            {/* Step Output Box */}
-            <div className="p-3.5 rounded-xl bg-[#161a23] border border-white/10 font-mono text-xs text-gray-300 space-y-2">
-              <div className="text-[10px] text-gray-400 uppercase tracking-wider font-sans font-bold flex items-center justify-between">
-                <span>Node Step Output</span>
-                <span className="text-emerald-400 flex items-center gap-1 font-bold">
-                  <CheckCircle2 size={12} /> SUCCESS
-                </span>
-              </div>
-              {activeInteractiveNode === 'webhook' && (
-                <pre className="text-[#ff6d5a] overflow-x-auto">
-{`{
-  "event": "user.signup",
-  "payload": { "id": 42, "email": "dev@automata.io" }
-}`}
-                </pre>
-              )}
-              {activeInteractiveNode === 'http' && (
-                <pre className="text-cyan-300 overflow-x-auto">
-{`{
-  "status": 200,
-  "data": { "health": "healthy", "latency_ms": 12 }
-}`}
-                </pre>
-              )}
-              {activeInteractiveNode === 'condition' && (
-                <pre className="text-amber-300 overflow-x-auto">
-{`{
-  "evaluated": true,
-  "branch": "true_path"
-}`}
-                </pre>
-              )}
-              {activeInteractiveNode === 'logger' && (
-                <pre className="text-blue-300 overflow-x-auto">
-{`[INFO] 2026-09-06T16:33:00Z - Workflow step executed successfully.`}
-                </pre>
-              )}
-            </div>
-          </div>
+    <div className="space-y-8">
+      <section className="flex flex-wrap items-end justify-between gap-6 py-5">
+        <div className="max-w-2xl space-y-3">
+          <p className="text-xs uppercase tracking-widest text-[#ff9c8e] font-semibold">Your workspace</p>
+          <h1 className="text-3xl md:text-4xl font-bold tracking-tight">Make the next step automatic.</h1>
+          <p className="text-gray-400">Pick up a workflow, check its latest run, or build something new.</p>
         </div>
+        <button onClick={onLaunchStudio} className="inline-flex items-center gap-2 rounded-xl bg-[#ff6d5a] px-5 py-3 text-sm font-semibold text-white hover:bg-[#ea4e43]">
+          <Plus size={18} /> Create Workflow
+        </button>
       </section>
 
-      {/* Quick Action Shortcuts */}
-      <section className="space-y-4">
-        <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400">Quick Actions</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <button
-            onClick={onLaunchStudio}
-            className="p-5 rounded-2xl bg-[#161a23] border border-white/10 hover:border-[#ff6d5a] text-left transition-all group shadow-xl"
-          >
-            <div className="p-2.5 rounded-xl bg-[#ff6d5a]/10 text-[#ff6d5a] w-fit mb-3 group-hover:scale-110 transition-transform">
-              <Layers size={20} />
-            </div>
-            <h4 className="text-sm font-bold text-white group-hover:text-[#ff6d5a]">Create Workflow</h4>
-            <p className="text-xs text-gray-400 mt-1">Design visual graph DAG</p>
-          </button>
-
-          <button
-            onClick={() => onNavigateTab('schedules')}
-            className="p-5 rounded-2xl bg-[#161a23] border border-white/10 hover:border-[#ff6d5a] text-left transition-all group shadow-xl"
-          >
-            <div className="p-2.5 rounded-xl bg-[#ff6d5a]/10 text-[#ff6d5a] w-fit mb-3 group-hover:scale-110 transition-transform">
-              <Clock size={20} />
-            </div>
-            <h4 className="text-sm font-bold text-white group-hover:text-[#ff6d5a]">Cron Schedules</h4>
-            <p className="text-xs text-gray-400 mt-1">Manage interval triggers</p>
-          </button>
-
-          <button
-            onClick={() => onNavigateTab('webhooks')}
-            className="p-5 rounded-2xl bg-[#161a23] border border-white/10 hover:border-[#ff6d5a] text-left transition-all group shadow-xl"
-          >
-            <div className="p-2.5 rounded-xl bg-[#ff6d5a]/10 text-[#ff6d5a] w-fit mb-3 group-hover:scale-110 transition-transform">
-              <Webhook size={20} />
-            </div>
-            <h4 className="text-sm font-bold text-white group-hover:text-[#ff6d5a]">Webhook Tester</h4>
-            <p className="text-xs text-gray-400 mt-1">cURL POST runner</p>
-          </button>
-
-          <button
-            onClick={() => onNavigateTab('runs')}
-            className="p-5 rounded-2xl bg-[#161a23] border border-white/10 hover:border-emerald-500 text-left transition-all group shadow-xl"
-          >
-            <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-400 w-fit mb-3 group-hover:scale-110 transition-transform">
-              <Activity size={20} />
-            </div>
-            <h4 className="text-sm font-bold text-white group-hover:text-emerald-300">Execution History</h4>
-            <p className="text-xs text-gray-400 mt-1">View step outputs</p>
-          </button>
-        </div>
+      <section aria-label="Workspace summary" className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {[
+          { label: 'Saved workflows', value: workflows.length, detail: 'Ready to edit and run' },
+          { label: 'Recent executions', value: runs.length, detail: 'Latest 50 runs across your workflows' },
+          { label: 'Failed in recent runs', value: failedRuns, detail: 'Open execution history to investigate' },
+        ].map(metric => (
+          <div key={metric.label} className="rounded-2xl border border-white/10 bg-[#161a23] p-5">
+            <p className="text-sm text-gray-400">{metric.label}</p>
+            <p className="my-2 text-3xl font-semibold tabular-nums">{loading ? '—' : metric.value}</p>
+            <p className="text-xs text-gray-500">{metric.detail}</p>
+          </div>
+        ))}
       </section>
 
-      {/* Engine Architecture */}
-      <section className="space-y-6">
-        <div>
-          <h2 className="text-lg font-bold text-white">Engine Architecture</h2>
-          <p className="text-xs text-gray-400 mt-0.5">Automata Go backend & n8n visual flow builder.</p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="p-6 rounded-2xl bg-[#161a23] border border-white/10 space-y-3 shadow-xl">
-            <div className="p-2 rounded-xl bg-[#ff6d5a]/10 text-[#ff6d5a] w-fit">
-              <ShieldCheck size={20} />
-            </div>
-            <h3 className="text-sm font-bold text-white">DAG Graph Validation</h3>
-            <p className="text-xs text-gray-300 leading-relaxed">
-              Every workflow version is validated for cycles and dangling node references prior to execution.
-            </p>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <section aria-labelledby="recent-workflows" className="rounded-2xl border border-white/10 bg-[#10141d] p-6">
+          <div className="mb-5 flex items-center justify-between gap-3">
+            <h2 id="recent-workflows" className="font-semibold">Recent workflows</h2>
+            <button onClick={() => onNavigateTab('workflows')} className="text-xs text-[#ff9c8e]">View all workflows →</button>
           </div>
-
-          <div className="p-6 rounded-2xl bg-[#161a23] border border-white/10 space-y-3 shadow-xl">
-            <div className="p-2 rounded-xl bg-[#ff6d5a]/10 text-[#ff6d5a] w-fit">
-              <Cpu size={20} />
+          {loading ? <p className="text-sm text-gray-400">Loading workflows…</p> : recentWorkflows.length ? (
+            <div className="space-y-2">
+              {recentWorkflows.map(workflow => (
+                <button key={workflow.id} onClick={() => onOpenWorkflow(workflow)} className="flex w-full items-center gap-4 rounded-xl border border-white/5 bg-[#161a23] p-4 text-left hover:border-[#ff6d5a]/50">
+                  <GitBranch size={20} className="shrink-0 text-[#ff9c8e]" />
+                  <div className="min-w-0 flex-1">
+                    <h3 className="truncate text-sm font-semibold">{workflow.name}</h3>
+                    <p className="mt-1 truncate text-xs text-gray-400">{workflow.description || 'Open the canvas to continue editing'}</p>
+                    <p className="mt-2 text-xs text-gray-500">Updated {new Date(workflow.updated_at).toLocaleDateString()}</p>
+                  </div>
+                  <ArrowRight size={16} className="shrink-0 text-gray-400" />
+                </button>
+              ))}
             </div>
-            <h3 className="text-sm font-bold text-white">Go Worker Pool</h3>
-            <p className="text-xs text-gray-300 leading-relaxed">
-              Concurrent worker pool execution with retries, node error handling, and state logging.
-            </p>
-          </div>
-
-          <div className="p-6 rounded-2xl bg-[#161a23] border border-white/10 space-y-3 shadow-xl">
-            <div className="p-2 rounded-xl bg-[#ff6d5a]/10 text-[#ff6d5a] w-fit">
-              <Code2 size={20} />
+          ) : (
+            <div className="rounded-xl border border-dashed border-white/15 p-7 text-center">
+              <GitBranch className="mx-auto mb-3 text-[#ff9c8e]" />
+              <h3 className="font-medium">Your first workflow starts here</h3>
+              <p className="mt-2 text-sm text-gray-400">Choose a starter template or a blank canvas. Save it, run it, then inspect each step.</p>
+              <button onClick={onLaunchStudio} className="mt-5 text-sm font-semibold text-[#ff9c8e]">Choose a template →</button>
             </div>
-            <h3 className="text-sm font-bold text-white">Extensible Node Interface</h3>
-            <p className="text-xs text-gray-300 leading-relaxed">
-              Add new node integrations seamlessly by implementing the Go <code className="text-[#ff6d5a] font-mono">Node</code> interface.
-            </p>
+          )}
+        </section>
+
+        <section aria-labelledby="recent-runs" className="rounded-2xl border border-white/10 bg-[#10141d] p-6">
+          <div className="mb-5 flex items-center justify-between gap-3">
+            <h2 id="recent-runs" className="font-semibold">Recent executions</h2>
+            <button onClick={() => onNavigateTab('runs')} className="text-xs text-[#ff9c8e]">View execution history →</button>
           </div>
-        </div>
+          {loading ? <p className="text-sm text-gray-400">Loading executions…</p> : recentRuns.length ? (
+            <ul className="divide-y divide-white/5">
+              {recentRuns.map(run => (
+                <li key={run.id} className="flex items-center justify-between gap-4 py-4">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">{workflows.find(workflow => workflow.id === run.workflow_id)?.name || 'Workflow'}</p>
+                    <p className="mt-1 text-xs text-gray-400">{run.trigger_type} · {new Date(run.created_at).toLocaleString()}</p>
+                    {run.error_message && <p className="mt-1 line-clamp-2 text-xs text-rose-300">{run.error_message}</p>}
+                  </div>
+                  <span className={`rounded-full px-3 py-1 text-xs capitalize ${statusColor[run.status]}`}>{run.status}</span>
+                </li>
+              ))}
+            </ul>
+          ) : <p className="rounded-xl border border-dashed border-white/15 p-7 text-sm text-gray-400">No executions yet. Open a workflow and select Execute Workflow to see its results here.</p>}
+        </section>
+      </div>
+
+      <section aria-label="Automation triggers" className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <button onClick={() => onNavigateTab('schedules')} className="flex items-center gap-4 rounded-xl border border-white/10 p-5 text-left hover:bg-white/5">
+          <Clock className="shrink-0 text-amber-300" size={22} />
+          <div><h2 className="text-sm font-semibold">Run on a schedule</h2><p className="mt-1 text-xs text-gray-400">Set a cron schedule for a saved workflow.</p></div>
+          <ArrowRight className="ml-auto shrink-0 text-gray-500" size={16} />
+        </button>
+        <button onClick={() => onNavigateTab('webhooks')} className="flex items-center gap-4 rounded-xl border border-white/10 p-5 text-left hover:bg-white/5">
+          <Webhook className="shrink-0 text-sky-300" size={22} />
+          <div><h2 className="text-sm font-semibold">Connect a webhook</h2><p className="mt-1 text-xs text-gray-400">Send a signed payload and inspect the result.</p></div>
+          <ArrowRight className="ml-auto shrink-0 text-gray-500" size={16} />
+        </button>
       </section>
+      <p className="text-xs text-gray-500">Visual workflows · Checkpointed execution · Configurable retries</p>
     </div>
   );
-};
+}

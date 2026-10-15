@@ -1,5 +1,7 @@
-# Local documentation and design diagrams
-/docs/
+# Keep existing local design notes private; track demo and benchmark documentation.
+/docs/*
+!/docs/demo/
+!/docs/benchmarks/
 
 # Backend specific
 backend/bin/
@@ -48,3 +50,8 @@ config.json
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Browser output and authenticated sessions
+frontend/test-results/
+frontend/playwright-report/
+frontend/.auth/

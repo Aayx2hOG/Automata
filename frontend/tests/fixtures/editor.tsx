@@ -16,7 +16,7 @@ const graph: WorkflowGraph = {
 ReactDOM.createRoot(document.getElementById('root')!).render(<WorkflowCanvas
   initialGraph={graph}
   workflowName="Editor regression"
-  onBack={() => {}}
-  onSave={async (_name, _description, graph) => { await fetch('/test/save', { method: 'POST', body: JSON.stringify(graph) }); }}
+  onBack={() => { document.body.dataset.leftEditor = 'true'; }}
+  onSave={async (_name, _description, graph) => { const response = await fetch('/test/save', { method: 'POST', body: JSON.stringify(graph) }); if (!response.ok) throw new Error('Save unavailable'); }}
   onRun={async () => ({ id: 'test-run', status: 'running', nodes: [] })}
 />);

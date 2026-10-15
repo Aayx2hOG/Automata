@@ -8,7 +8,10 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:ci": "playwright test tests/editor.spec.ts tests/home.spec.ts tests/workflow.spec.ts",
+    "test:auth": "playwright test tests/auth.spec.ts",
+    "demo": "RECORD_DEMO=1 playwright test tests/demo.spec.ts"
   },
   "dependencies": {
     "@clerk/react": "^6.17.8",

@@ -4,6 +4,20 @@ Automata is a self-hosted workflow automation application with a visual DAG edit
 a Go API, and PostgreSQL-backed execution. It supports manual runs, signed webhooks,
 cron schedules, conditional branches, and persisted execution results.
 
+## See it working
+
+![Automata workspace with recent workflows and execution history](docs/demo/workspace.png)
+
+![Workflow editor with branching and persisted node results](docs/demo/editor.png)
+
+[Watch the short demo](docs/demo/demo.webm) ·
+[Reproduce the demo](docs/demo/README.md) ·
+[Worker-restart experiment and latency baseline](docs/benchmarks/README.md)
+
+The demo uses the real API with an isolated test account. The recovery experiment
+kills and restarts its own API process and checks that completed node outputs are
+reused. Measurement scope and limitations are documented alongside the results.
+
 ## Architecture
 
 ```text
@@ -227,7 +241,10 @@ write test users to the configured database. Database suites skip if their URLs
 are unset; a passing run without these variables does not validate persistence.
 
 CI runs migrations, vet, build, race-enabled Go tests, a logical backup/restore
-smoke test, frontend checks, and browser regressions. Test-only IP-limit bypass
+smoke test, frontend checks, and browser regressions. The workflow browser test
+uses a fresh server-authenticated JWT account against the real API; its test-only
+entry point replaces the Clerk session UI. Google/Clerk sign-in is checked
+separately with `npm run test:auth` and is not exercised by this CI harness. Test-only IP-limit bypass
 requires both `ENV=test` and `TEST_DISABLE_RATE_LIMIT=1`; durable run quotas remain
 enforced. No external shell-script files are required.
 
@@ -307,7 +324,9 @@ API endpoints require Clerk tokens. Without it, the API retains its legacy JWT
 mode. Do not remove the Clerk setting during a normal deployment.
 
 Frontend checks: `npm run build`, `npm run lint`, and
-`npx playwright test tests/auth.spec.ts`. The workflow browser test now requires
-`CLERK_TEST_STORAGE_STATE` pointing to a Playwright storage-state file for an
-already authenticated, dedicated Clerk test account. Keep that session file out
+`npx playwright test tests/auth.spec.ts`. To run the workflow browser test through Clerk, set
+`CLERK_TEST_STORAGE_STATE` to a Playwright storage-state file for an
+already authenticated, dedicated Clerk test account. Alternatively, use
+`E2E_LOCAL_AUTH=1 npm run test:ci` against an isolated backend in legacy JWT mode.
+The workflow test fails with setup instructions if neither mode is configured. Keep that session file out
 of source control. The Google consent flow must be completed interactively.

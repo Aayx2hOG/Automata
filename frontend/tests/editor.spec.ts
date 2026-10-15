@@ -40,3 +40,40 @@ test('execution inspector polls checkpoints and displays failures', async ({ pag
   await details.locator('summary').click();
   await expect(details).toContainText('HTTP request returned status 401');
 });
+
+
+test('unsaved edits warn before leaving and successful saves clear the warning', async ({ page }) => {
+  await expect(page.getByText('All changes saved', { exact: true })).toBeVisible();
+  await page.getByLabel('Workflow description').fill('Unsaved draft');
+  await expect(page.getByText('Unsaved changes', { exact: true })).toBeVisible();
+  page.once('dialog', dialog => dialog.dismiss());
+  await page.getByTitle('Back to Dashboard').click();
+  await expect(page.locator('body')).not.toHaveAttribute('data-left-editor');
+  await page.getByRole('button', { name: 'Save Graph' }).click();
+  await expect(page.getByText('All changes saved', { exact: true })).toBeVisible();
+  await page.getByTitle('Back to Dashboard').click();
+  await expect(page.locator('body')).toHaveAttribute('data-left-editor', 'true');
+});
+
+test('a failed save retains edits and blocks execution', async ({ page }) => {
+  await page.route('**/test/save', route => route.fulfill({ status: 503, json: {} }));
+  await page.getByLabel('Workflow name').fill('Draft name');
+  await page.getByRole('button', { name: 'Execute Workflow' }).click();
+  await expect(page.getByText('Save failed — try again', { exact: true })).toBeVisible();
+  await expect(page.getByText('Execution RUNNING', { exact: true })).not.toBeVisible();
+  page.once('dialog', dialog => dialog.accept());
+  await page.getByTitle('Back to Dashboard').click();
+  await expect(page.locator('body')).toHaveAttribute('data-left-editor', 'true');
+});
+
+test('edits made during a save remain unsaved after it completes', async ({ page }) => {
+  let finishSave!: () => void;
+  const gate = new Promise<void>(resolve => { finishSave = resolve; });
+  await page.route('**/test/save', async route => { await gate; await route.fulfill({ json: {} }); });
+  await page.getByLabel('Workflow description').fill('First draft');
+  await page.getByRole('button', { name: 'Save Graph' }).click();
+  await expect(page.getByText('Saving…', { exact: true })).toBeVisible();
+  await page.getByLabel('Workflow description').fill('Second draft');
+  finishSave();
+  await expect(page.getByText('Unsaved changes', { exact: true })).toBeVisible();
+});

@@ -16,17 +16,17 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab, onNewWo
     <header className="h-16 border-b border-white/10 bg-[#10141d] backdrop-blur-xl sticky top-0 z-30 px-6 flex items-center justify-between">
       {/* Brand Logo */}
       <div className="flex items-center space-x-8">
-        <div className="flex items-center space-x-3 cursor-pointer" onClick={() => setActiveTab('home')}>
+        <button className="flex items-center space-x-3 text-left" aria-label="Automata home" onClick={() => setActiveTab('home')}>
           <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#ff6d5a] to-[#ea4e43] flex items-center justify-center shadow-lg shadow-[#ff6d5a]/25">
             <Bot size={20} className="text-white" />
           </div>
           <div>
             <span className="font-extrabold text-base text-white tracking-wide">automata</span>
             <span className="ml-2 text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#ff6d5a]/10 text-[#ff6d5a] border border-[#ff6d5a]/30 font-semibold">
-              n8n-Engine
+              Workflows
             </span>
           </div>
-        </div>
+        </button>
 
         {/* Simplified Navigation Tabs */}
         <nav className="hidden md:flex items-center space-x-1">
@@ -101,7 +101,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab, onNewWo
 
         <button
           onClick={onNewWorkflow}
-          className="flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-[#ff6d5a] to-[#ea4e43] hover:from-[#ff8575] hover:to-[#ff6d5a] text-white text-xs font-bold shadow-lg shadow-[#ff6d5a]/25 transition-all hover:scale-105 active:scale-95"
+          className="shrink-0 whitespace-nowrap flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-[#ff6d5a] to-[#ea4e43] hover:from-[#ff8575] hover:to-[#ff6d5a] text-white text-xs font-bold shadow-lg shadow-[#ff6d5a]/25 transition-all hover:scale-105 active:scale-95"
         >
           <Plus size={16} />
           <span>Add Workflow</span>
@@ -110,7 +110,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab, onNewWo
         {user && (
           <div className="flex items-center space-x-2 pl-2 border-l border-white/10">
             <div className="text-right hidden lg:block">
-              <div className="text-xs font-semibold text-white">{user.email}</div>
+              <div className="max-w-44 truncate text-xs font-semibold text-white" title={user.email}>{user.email}</div>
             </div>
             <UserButton />
           </div>

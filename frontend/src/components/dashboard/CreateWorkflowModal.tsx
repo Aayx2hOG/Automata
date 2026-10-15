@@ -116,7 +116,7 @@ export const CreateWorkflowModal: React.FC<CreateWorkflowModalProps> = ({ isOpen
             </div>
             <h2 className="text-base font-bold text-white uppercase tracking-wider">Create New Workflow</h2>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
+          <button type="button" aria-label="Close new workflow" onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
             <X size={20} />
           </button>
         </div>
@@ -125,9 +125,10 @@ export const CreateWorkflowModal: React.FC<CreateWorkflowModalProps> = ({ isOpen
           {error && <p role="alert" className="text-rose-300">{error}</p>}
           <div className="space-y-4">
             <div>
-              <label className="text-xs font-bold text-gray-300 uppercase tracking-wider">Workflow Name *</label>
+              <label htmlFor="workflow-name" className="text-xs font-bold text-gray-300 uppercase tracking-wider">Workflow Name *</label>
               <input
                 type="text"
+                id="workflow-name"
                 required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -137,9 +138,10 @@ export const CreateWorkflowModal: React.FC<CreateWorkflowModalProps> = ({ isOpen
             </div>
 
             <div>
-              <label className="text-xs font-bold text-gray-300 uppercase tracking-wider">Description</label>
+              <label htmlFor="workflow-description" className="text-xs font-bold text-gray-300 uppercase tracking-wider">Description</label>
               <input
                 type="text"
+                id="workflow-description"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Optional workflow description..."
@@ -158,10 +160,12 @@ export const CreateWorkflowModal: React.FC<CreateWorkflowModalProps> = ({ isOpen
                 const Icon = tpl.icon;
                 const isSelected = selectedTemplate.id === tpl.id;
                 return (
-                  <div
+                  <button
+                    type="button"
+                    aria-pressed={isSelected}
                     key={tpl.id}
                     onClick={() => setSelectedTemplate(tpl)}
-                    className={`p-4 rounded-xl border cursor-pointer transition-all ${tpl.color} ${
+                    className={`text-left p-4 rounded-xl border cursor-pointer transition-all ${tpl.color} ${
                       isSelected ? 'ring-2 ring-[#ff6d5a] scale-[1.02]' : 'hover:opacity-90 opacity-70'
                     }`}
                   >
@@ -170,7 +174,7 @@ export const CreateWorkflowModal: React.FC<CreateWorkflowModalProps> = ({ isOpen
                       <span>{tpl.name}</span>
                     </div>
                     <p className="text-xs text-gray-300 line-clamp-2">{tpl.description}</p>
-                  </div>
+                  </button>
                 );
               })}
             </div>

@@ -62,13 +62,21 @@ configured. Apply migration 15 before starting this release.
 ```sh
 npm run build
 npm run lint
-npx playwright test tests/editor.spec.ts
 npx playwright install --with-deps chromium
-# Requires the API and migrated database running:
-npm run test:e2e
+npx playwright test tests/editor.spec.ts tests/home.spec.ts
+# Requires an isolated local JWT API and migrated test database:
+E2E_LOCAL_AUTH=1 npm run test:ci
+# Requires a configured Clerk frontend and network access:
+npm run test:auth
 ```
 
-Playwright starts Vite automatically. The browser test uses a fresh account and workflow, checks persistence and successful execution, schedules, signed webhooks, and failed-save feedback. It leaves its test data in the database.
+Playwright starts Vite automatically. The local workflow browser test registers a fresh account and authenticates real API requests with its JWT. A test-only entry point supplies that account to the workspace and replaces the Clerk profile widget. There is no production authentication bypass. It checks persistence, execution, schedules, signed webhooks, and failed-save feedback, and leaves its data in the test database. CI explicitly runs this suite; missing authentication setup fails rather than silently skipping.
+
+For the actual Clerk session flow, run `CLERK_TEST_STORAGE_STATE=/path/to/session.json npx playwright test tests/workflow.spec.ts` with a dedicated signed-in account. Keep session files out of Git. This path is separate from the local JWT harness.
+
+The home screen shows the four most recently updated workflows and five latest executions. Summary counts describe the latest 50 fetched runs, not lifetime totals. Editor changes are tracked across graph configuration, positions, name, and description; unsaved edits prompt before leaving, failed saves stay visible, and edits made during a save remain unsaved. Browser refresh/close warnings depend on the browser’s usual user-interaction rules.
+
+Run `npm run demo` against the isolated JWT backend to capture screenshots and a video. See [demo instructions](../docs/demo/README.md) and [recovery verification](../docs/benchmarks/README.md).
 
 For database-backed Go tests, run from `backend/` against a dedicated test database:
 

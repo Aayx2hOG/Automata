@@ -1,6 +1,7 @@
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import {
   ReactFlow,
+  ReactFlowInstance,
   MiniMap,
   Controls,
   Background,
@@ -70,9 +71,16 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
   const [description, setDescription] = useState(initialDesc);
   const [isSaving, setIsSaving] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
+  const [flow, setFlow] = useState<ReactFlowInstance | null>(null);
   const [runResult, setRunResult] = useState<WorkflowRun | null>(null);
   const [selectedNode, setSelectedNode] = useState<{ id: string; type: string; data: CustomNodeData } | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const hasRun = !!runResult;
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => { void flow?.fitView({ padding: 0.15, maxZoom: 1 }); });
+    return () => cancelAnimationFrame(frame);
+  }, [flow, hasRun]);
 
   useEffect(() => {
     if (!runResult || !['pending', 'running'].includes(runResult.status)) return;
@@ -244,17 +252,44 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
     return { nodes: graphNodes, edges: graphEdges };
   };
 
+  // Compare only persisted fields; selection, measurements and run polling are not edits.
+  const snapshot = JSON.stringify({ name, description, graph: getGraphData() });
+  const [savedSnapshot, setSavedSnapshot] = useState(snapshot);
+  const [saveError, setSaveError] = useState(false);
+  const savingRef = useRef(false);
+  const isDirty = snapshot !== savedSnapshot;
+
+  useEffect(() => {
+    if (!isDirty) return;
+    const warnBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warnBeforeUnload);
+    return () => window.removeEventListener('beforeunload', warnBeforeUnload);
+  }, [isDirty]);
+
+  const handleBack = () => {
+    if (!isDirty || window.confirm('Discard unsaved changes and return to the dashboard?')) onBack();
+  };
+
   const handleSaveWorkflow = async (): Promise<boolean> => {
+    if (savingRef.current) return false;
+    savingRef.current = true;
+    setSaveError(false);
     setIsSaving(true);
     try {
       const graph = getGraphData();
       await onSave(name, description, graph);
+      setSavedSnapshot(snapshot);
       showToast('Workflow saved successfully!');
       return true;
     } catch (err: any) {
+      setSaveError(true);
       showToast(`Error saving: ${err.message || 'Failed'}`);
       return false;
     } finally {
+      savingRef.current = false;
       setIsSaving(false);
     }
   };
@@ -263,8 +298,7 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
     setIsRunning(true);
     setRunResult(null);
     try {
-      const graph = getGraphData();
-      await onSave(name, description, graph);
+      if (!await handleSaveWorkflow()) return;
       const res = await onRun();
       setRunResult(res);
       showToast('Workflow execution triggered!');
@@ -282,29 +316,35 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
       <header className="h-16 border-b border-white/10 bg-[#10141d] backdrop-blur-xl px-5 flex items-center justify-between z-20">
         <div className="flex items-center space-x-4">
           <button
-            onClick={onBack}
+            onClick={handleBack}
             className="p-2 rounded-xl text-gray-400 hover:bg-white/10 hover:text-white transition-colors"
             title="Back to Dashboard"
           >
             <ArrowLeft size={20} />
           </button>
-          <div>
+          <div className="w-64 xl:w-96">
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="bg-transparent font-bold text-lg text-white focus:outline-none focus:border-b focus:border-[#ff6d5a]"
+              className="w-full bg-transparent font-bold text-lg text-white focus:outline-none focus:border-b focus:border-[#ff6d5a]"
+              aria-label="Workflow name"
               placeholder="Workflow Name"
             />
             <input
               type="text"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="block bg-transparent text-xs text-gray-400 focus:outline-none"
+              className="block w-full bg-transparent text-xs text-gray-400 focus:outline-none"
+              aria-label="Workflow description"
               placeholder="Add description..."
             />
           </div>
         </div>
+
+        <span role="status" aria-live="polite" className={`text-xs ${saveError ? 'text-rose-300' : isDirty ? 'text-amber-300' : 'text-gray-400'}`}>
+          {isSaving ? 'Saving…' : saveError ? 'Save failed — try again' : isDirty ? 'Unsaved changes' : 'All changes saved'}
+        </span>
 
         {/* Action Buttons */}
         <div className="flex items-center space-x-3">
@@ -361,8 +401,10 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
         </aside>
 
         {/* Center React Flow Canvas */}
-        <div className="flex-1 relative">
+        <div className="flex-1 min-w-0 relative">
           <ReactFlow
+            onInit={setFlow}
+            fitViewOptions={{ padding: 0.15, maxZoom: 1 }}
             nodes={nodes.map(node => ({ ...node, data: { ...node.data, status: runResult?.nodes?.find(step => step.node_id === node.id)?.status } }))}
             edges={edges}
             onNodesChange={onNodesChange}
@@ -377,11 +419,13 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
             <MiniMap maskColor="rgba(13, 16, 23, 0.8)" nodeColor="#ff6d5a" />
           </ReactFlow>
 
-          {/* Execution Result Banner */}
+        </div>
+
+          {/* Execution details stay beside the graph instead of covering nodes. */}
           {runResult && (
-            <div className="absolute bottom-6 left-6 right-6 max-w-2xl bg-[#161a23] border border-white/10 p-4 rounded-xl backdrop-blur-xl shadow-2xl z-20 space-y-2">
+            <aside aria-label="Execution results" className="w-80 xl:w-96 shrink-0 bg-[#10141d] border-l border-white/10 p-4 space-y-4 overflow-y-auto">
               <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
+                <div className="flex flex-wrap items-center gap-2">
                   {runResult.status === 'succeeded' ? (
                     <CheckCircle2 className="text-emerald-400" size={20} />
                   ) : runResult.status === 'failed' ? (
@@ -390,7 +434,7 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
                   <span className="font-bold text-sm">
                     Execution {runResult.status?.toUpperCase() || 'FINISHED'}
                   </span>
-                  <span className="text-xs text-gray-400 font-mono">Run ID: {runResult.id}</span>
+                  <span className="w-full break-all text-[10px] text-gray-500 font-mono">Run ID: {runResult.id}</span>
                 </div>
                 <button onClick={() => setRunResult(null)} className="text-xs text-gray-400 hover:text-white">
                   Close
@@ -410,9 +454,8 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
                   <pre>{JSON.stringify(runResult.outputs, null, 2)}</pre>
                 </div>
               )}
-            </div>
+            </aside>
           )}
-        </div>
 
         {/* Right Node Inspector Drawer */}
         {selectedNode && (
@@ -444,7 +487,7 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
 
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed bottom-5 right-5 bg-[#ff6d5a] text-white px-4 py-2.5 rounded-xl shadow-2xl text-sm font-bold z-50 animate-bounce">
+        <div role="status" className="fixed bottom-5 right-5 bg-[#ff6d5a] text-white px-4 py-2.5 rounded-xl shadow-2xl text-sm font-bold z-50 animate-bounce">
           {toastMessage}
         </div>
       )}

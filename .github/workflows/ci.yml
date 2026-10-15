@@ -97,12 +97,13 @@ jobs:
           done
           curl -fsS http://localhost:8080/healthz > /dev/null
           cd ../frontend
-          npm run test:e2e
+          npm run test:ci
         env:
           DATABASE_URL: postgres://automata:automata@localhost:5432/automata?sslmode=disable
           JWT_SECRET: ci-test-secret-do-not-use-in-production-ok
           ENV: test
           TEST_DISABLE_RATE_LIMIT: '1'
+          E2E_LOCAL_AUTH: '1'
 
       - uses: actions/upload-artifact@v4
         if: failure()

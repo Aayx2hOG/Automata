@@ -1,9 +1,14 @@
 import { test, expect } from '@playwright/test';
+import { authenticateLocalWorkspace } from './fixtures/local-auth';
 
 test.use({ storageState: process.env.CLERK_TEST_STORAGE_STATE });
 
-test('create, save, reload, execute, schedule and sign a webhook', async ({ page }) => {
-  test.skip(!process.env.CLERK_TEST_STORAGE_STATE, 'Provide a signed-in Clerk test account storage state.');
+test('create, save, reload, execute, schedule and sign a webhook', async ({ page, request }) => {
+  if (process.env.E2E_LOCAL_AUTH === '1') {
+    await authenticateLocalWorkspace(page, request);
+  } else if (!process.env.CLERK_TEST_STORAGE_STATE) {
+    throw new Error('Set E2E_LOCAL_AUTH=1 for a local JWT backend, or provide CLERK_TEST_STORAGE_STATE for Clerk.');
+  }
   const name = `Browser workflow ${Date.now()}`;
   await page.goto('/');
   await page.getByRole('button', { name: 'Add Workflow' }).click();

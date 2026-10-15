@@ -1,0 +1,23 @@
+{
+  "samples": 20,
+  "concurrency": 1,
+  "poll_interval_ms": 100,
+  "recovery": {
+    "status": "succeeded",
+    "seconds_after_restart": 35.11,
+    "node_attempts": {
+      "start": 1,
+      "pause": 2,
+      "finish": 1
+    }
+  },
+  "admission": {
+    "median_ms": 9.1,
+    "p95_ms": 12.81
+  },
+  "observed_completion": {
+    "median_ms": 957.48,
+    "p95_ms": 1058.15
+  },
+  "scope": "Local sequential single-node baseline, not a throughput or external-effect exactly-once guarantee."
+}

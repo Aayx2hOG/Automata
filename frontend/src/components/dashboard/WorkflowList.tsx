@@ -52,7 +52,7 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({
         <div className="p-12 text-center rounded-2xl border border-dashed border-white/10 bg-[#161a23]/60">
           <h3 className="text-base font-bold text-white">No workflows found</h3>
           <p className="text-xs text-gray-400 mt-1 max-w-md mx-auto">
-            {searchTerm ? 'Try adjusting your search query.' : 'Create your first n8n-style visual workflow.'}
+            {searchTerm ? 'Try adjusting your search query.' : 'Create your first visual workflow.'}
           </p>
           {!searchTerm && (
             <button
@@ -93,11 +93,12 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({
               </div>
 
               <h3
-                onClick={() => onSelect(workflow)}
                 className="text-base font-bold text-white group-hover:text-[#ff6d5a] transition-colors cursor-pointer flex items-center justify-between"
               >
-                <span>{workflow.name}</span>
-                <ArrowUpRight size={16} className="opacity-0 group-hover:opacity-100 transition-opacity text-[#ff6d5a]" />
+                <button onClick={() => onSelect(workflow)} className="flex w-full items-center justify-between text-left">
+                  <span>{workflow.name}</span>
+                  <ArrowUpRight size={16} className="text-[#ff6d5a]" />
+                </button>
               </h3>
 
               <p className="text-xs text-gray-400 mt-1.5 line-clamp-2">

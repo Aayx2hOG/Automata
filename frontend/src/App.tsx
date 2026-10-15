@@ -14,7 +14,7 @@ import { WebhookTester } from './components/webhooks/WebhookTester';
 import { Workflow, WorkflowGraph, WorkflowRun, Schedule } from './types';
 import { api } from './lib/api';
 
-const Workspace: React.FC = () => {
+export const Workspace: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'home' | 'workflows' | 'runs' | 'schedules' | 'webhooks'>('home');
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [runs, setRuns] = useState<WorkflowRun[]>([]);
@@ -114,6 +114,8 @@ const Workspace: React.FC = () => {
         {activeTab === 'home' && (
           <LandingPage
             workflows={workflows}
+            runs={runs}
+            loading={loading}
             onLaunchStudio={() => setIsCreateModalOpen(true)}
             onOpenWorkflow={handleOpenWorkflowCanvas}
             onNavigateTab={setActiveTab}
