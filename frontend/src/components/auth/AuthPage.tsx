@@ -3,6 +3,7 @@ import { SignIn, SignUp, UserButton, useAuth } from '@clerk/react';
 import { ArrowRight, Check, Clock3, GitBranch, Globe2, LockKeyhole, RotateCcw, Webhook, Workflow } from 'lucide-react';
 import './auth.css';
 import { BrandMark } from '../common/BrandMark';
+import { PasswordStrength } from './PasswordStrength';
 
 interface AuthPageProps {
   pending?: boolean;
@@ -71,10 +72,10 @@ export const AuthPage = ({ pending = false, error, onRetry }: AuthPageProps) => 
               <h2>Let’s reconnect.</h2>
               <p role="alert">{error}</p>
               <button className="auth-retry" onClick={onRetry}>Try again <ArrowRight size={16} /></button>
-              <p className="auth-error-hint">Your Google sign-in is secure. You can manage your account from the profile button above.</p>
+              <p className="auth-error-hint">You are signed in. You can manage your account from the profile button above.</p>
             </div> : pending || !isLoaded ? <div className="auth-placeholder" role="status" aria-label="Preparing your workspace">
               <div className="auth-placeholder-title" /><div className="auth-placeholder-subtitle" /><div className="auth-placeholder-button" /><div className="auth-placeholder-divider" /><div className="auth-placeholder-button" /><div className="auth-placeholder-button" />
-            </div> : mode === 'signin' ? <SignIn routing="hash" appearance={appearance} forceRedirectUrl="/" /> : <SignUp routing="hash" appearance={appearance} forceRedirectUrl="/" />}
+            </div> : <PasswordStrength key={mode}>{mode === 'signin' ? <SignIn routing="hash" appearance={appearance} forceRedirectUrl="/" /> : <SignUp routing="hash" appearance={appearance} forceRedirectUrl="/" />}</PasswordStrength>}
           </div>
           <p className="auth-security"><LockKeyhole size={12} /> Secure access with Google or email</p>
         </section>

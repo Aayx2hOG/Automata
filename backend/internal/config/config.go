@@ -45,6 +45,7 @@ type DatabaseConfig struct {
 }
 
 type AuthConfig struct {
+	RequireClerk           bool          `mapstructure:"require_clerk"`
 	ClerkSecretKey         string        `mapstructure:"clerk_secret_key"`
 	ClerkAuthorizedParties string        `mapstructure:"clerk_authorized_parties"`
 	JWTSecret              string        `mapstructure:"jwt_secret"`
@@ -95,6 +96,7 @@ func load(envFiles ...string) (*Config, error) {
 	v.SetDefault("worker.concurrency", 4)
 	v.SetDefault("worker.queue_capacity", 64)
 	v.SetDefault("auth.access_token_ttl", "15m")
+	v.SetDefault("auth.require_clerk", false)
 	v.SetDefault("auth.clerk_authorized_parties", "http://localhost:3000,http://127.0.0.1:3000")
 	if err := v.BindEnv("auth.clerk_secret_key", "CLERK_SECRET_KEY"); err != nil {
 		return nil, err
@@ -127,6 +129,9 @@ func load(envFiles ...string) (*Config, error) {
 
 	if cfg.Database.URL == "" {
 		return nil, fmt.Errorf("DATABASE_URL is required")
+	}
+	if cfg.Auth.RequireClerk && strings.TrimSpace(cfg.Auth.ClerkSecretKey) == "" {
+		return nil, fmt.Errorf("CLERK_SECRET_KEY is required when AUTH_REQUIRE_CLERK=true; use the same Clerk instance as the frontend")
 	}
 	if cfg.Worker.Concurrency < 1 || cfg.Worker.QueueCapacity < 1 {
 		return nil, fmt.Errorf("worker concurrency and queue capacity must be positive")

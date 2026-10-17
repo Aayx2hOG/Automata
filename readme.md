@@ -292,6 +292,9 @@ checkpoint details, not streaming logs or a complete event history.
 
 ### Clerk and Google sign-in
 
+For Vercel/Render configuration, password requirements, and enabling both email
+codes and passwords, see [deployed authentication](docs/deployed-auth.md).
+
 The React frontend uses Clerk (`@clerk/react`) and Google sign-in. This checkout is
 linked to Clerk application `app_3JrrdyYliRahu8pEo8ti4lPFM7i` (Tasktamer).
 Google is enabled in its development instance.

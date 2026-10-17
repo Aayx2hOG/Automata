@@ -3,8 +3,24 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
+
+func TestRequiredClerkCannotFallBackToLegacy(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://localhost/test")
+	t.Setenv("JWT_SECRET", "test-secret-with-at-least-32-characters")
+	t.Setenv("AUTH_REQUIRE_CLERK", "true")
+	t.Setenv("CLERK_SECRET_KEY", "")
+	if _, err := load(); err == nil || !strings.Contains(err.Error(), "CLERK_SECRET_KEY is required") {
+		t.Fatalf("expected missing Clerk key error, got %v", err)
+	}
+	t.Setenv("CLERK_SECRET_KEY", "sk_test_placeholder")
+	cfg, err := load()
+	if err != nil || !cfg.Auth.RequireClerk || cfg.Auth.ClerkSecretKey != "sk_test_placeholder" {
+		t.Fatalf("Clerk environment bindings failed: %v", err)
+	}
+}
 
 func TestEnvironmentPrecedenceAndBindings(t *testing.T) {
 	file := filepath.Join(t.TempDir(), ".env")
