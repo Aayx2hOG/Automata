@@ -93,7 +93,6 @@ export const CreateWorkflowModal: React.FC<CreateWorkflowModalProps> = ({ isOpen
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
 
     setIsSubmitting(true); setError(null);
     try {
@@ -127,14 +126,13 @@ export const CreateWorkflowModal: React.FC<CreateWorkflowModalProps> = ({ isOpen
           {error && <p role="alert" className="text-rose-300">{error}</p>}
           <div className="space-y-4">
             <div>
-              <label htmlFor="workflow-name" className="text-xs font-bold text-gray-300 uppercase tracking-wider">Workflow Name *</label>
+              <label htmlFor="workflow-name" className="text-xs font-bold text-gray-300 uppercase tracking-wider">Workflow Name (optional)</label>
               <input
                 type="text"
                 id="workflow-name"
-                required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. GitHub Webhook Notifier"
+                placeholder="Leave blank for an automatic name"
                 className="mt-1 w-full bg-[#101012] border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#ff6d5a]"
               />
             </div>
@@ -193,7 +191,7 @@ export const CreateWorkflowModal: React.FC<CreateWorkflowModalProps> = ({ isOpen
 
             <button
               type="submit"
-              disabled={isSubmitting || !name.trim()}
+              disabled={isSubmitting}
               className="px-5 py-2 rounded-xl bg-[#ff6d5a] hover:bg-[#ff8575] text-white text-xs font-bold shadow-lg shadow-[#ff6d5a]/30 transition-all hover:scale-105 disabled:opacity-50"
             >
               {isSubmitting ? 'Creating...' : 'Create & Open Canvas'}

@@ -27,7 +27,7 @@ func NewWorkflowHandler(workflowService *services.WorkflowService, logger *zap.L
 }
 
 type createWorkflowRequest struct {
-	Name        string               `json:"name" validate:"required,max=255"`
+	Name        string               `json:"name" validate:"max=255"`
 	Description string               `json:"description" validate:"max=1000"`
 	Graph       models.WorkflowGraph `json:"graph"`
 }
@@ -183,6 +183,10 @@ func (h *WorkflowHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	if err = validate.Struct(req); err != nil {
 		respondError(w, h.logger, http.StatusBadRequest, validationMessage(err))
+		return
+	}
+	if req.Name == "" {
+		respondError(w, h.logger, http.StatusBadRequest, "workflow name is required")
 		return
 	}
 	version, err := h.workflowService.UpdateWorkflow(r.Context(), id, ownerID, req.Name, req.Description, req.Graph)

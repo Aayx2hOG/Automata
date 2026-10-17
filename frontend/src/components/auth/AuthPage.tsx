@@ -31,9 +31,9 @@ export const AuthPage = ({ pending = false, error, onRetry }: AuthPageProps) => 
   return (
     <div className="auth-page">
       <header className="auth-nav">
-        <a href="/" className="auth-brand" aria-label="Automata home"><span className="auth-brand-icon"><BrandMark size={34} /></span>Automata</a>
+        <a href="#/welcome" className="auth-brand" aria-label="Automata home"><span className="auth-brand-icon"><BrandMark size={34} /></span>Automata</a>
         <nav aria-label="Account" className="auth-nav-actions">
-          {isSignedIn ? <UserButton /> : <>
+          {isSignedIn ? <><a className="auth-nav-signup" href="#/home">Open workspace <ArrowRight size={14} /></a><UserButton /></> : <>
             <button className={mode === 'signin' ? 'auth-nav-link active' : 'auth-nav-link'} onClick={() => setMode('signin')}>Sign in</button>
             <button className="auth-nav-signup" onClick={() => setMode('signup')}>Sign up <ArrowRight size={14} /></button>
           </>}
@@ -75,9 +75,13 @@ export const AuthPage = ({ pending = false, error, onRetry }: AuthPageProps) => 
               <p className="auth-error-hint">You are signed in. You can manage your account from the profile button above.</p>
             </div> : pending || !isLoaded ? <div className="auth-placeholder" role="status" aria-label="Preparing your workspace">
               <div className="auth-placeholder-title" /><div className="auth-placeholder-subtitle" /><div className="auth-placeholder-button" /><div className="auth-placeholder-divider" /><div className="auth-placeholder-button" /><div className="auth-placeholder-button" />
+            </div> : isSignedIn ? <div className="auth-welcome">
+              <h2>Welcome back.</h2>
+              <p>Your workflows are ready when you are.</p>
+              <a className="auth-workspace-button" href="#/home">Open workspace <ArrowRight size={17} aria-hidden="true" /></a>
             </div> : <PasswordStrength key={mode}>{mode === 'signin' ? <SignIn routing="hash" appearance={appearance} forceRedirectUrl="/" /> : <SignUp routing="hash" appearance={appearance} forceRedirectUrl="/" />}</PasswordStrength>}
           </div>
-          <p className="auth-security"><LockKeyhole size={12} /> Secure access with Google or email</p>
+          {!isSignedIn && <p className="auth-security"><LockKeyhole size={12} /> Secure access with Google or email</p>}
         </section>
       </main>
       <footer className="auth-footer"><span>Less repetition. More creation.</span><span>Built for the way you work.</span></footer>

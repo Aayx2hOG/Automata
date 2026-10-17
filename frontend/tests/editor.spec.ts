@@ -46,8 +46,8 @@ test('unsaved edits warn before leaving and successful saves clear the warning',
   await expect(page.getByText('All changes saved', { exact: true })).toBeVisible();
   await page.getByLabel('Workflow description').fill('Unsaved draft');
   await expect(page.getByText('Unsaved changes', { exact: true })).toBeVisible();
-  page.once('dialog', dialog => dialog.dismiss());
   await page.getByTitle('Back to Dashboard').click();
+  await page.getByRole('button', { name: 'Keep editing' }).click();
   await expect(page.locator('body')).not.toHaveAttribute('data-left-editor');
   await page.getByRole('button', { name: 'Save Graph' }).click();
   await expect(page.getByText('All changes saved', { exact: true })).toBeVisible();
@@ -61,8 +61,8 @@ test('a failed save retains edits and blocks execution', async ({ page }) => {
   await page.getByRole('button', { name: 'Execute Workflow' }).click();
   await expect(page.getByText('Save failed — try again', { exact: true })).toBeVisible();
   await expect(page.getByText('Execution RUNNING', { exact: true })).not.toBeVisible();
-  page.once('dialog', dialog => dialog.accept());
   await page.getByTitle('Back to Dashboard').click();
+  await page.getByRole('button', { name: 'Discard changes', exact: true }).click();
   await expect(page.locator('body')).toHaveAttribute('data-left-editor', 'true');
 });
 
@@ -77,3 +77,12 @@ test('edits made during a save remain unsaved after it completes', async ({ page
   finishSave();
   await expect(page.getByText('Unsaved changes', { exact: true })).toBeVisible();
 });
+
+ test('Enter saves the title and removes focus; minimap includes connections', async ({ page }) => {
+  const name = page.getByLabel('Workflow name');
+  await name.fill('Renamed workflow');
+  await name.press('Enter');
+  await expect(page.getByText('All changes saved', { exact: true })).toBeVisible();
+  await expect(name).not.toBeFocused();
+  await expect(page.locator('[data-minimap-edge]')).toHaveCount(1);
+ });

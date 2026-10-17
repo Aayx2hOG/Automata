@@ -1,4 +1,4 @@
-import { Layers, Clock, Activity, CheckCircle2 } from 'lucide-react';
+import { Layers, Clock, Activity } from 'lucide-react';
 import type { Workflow } from '../../types';
 
 interface MetricsOverviewProps {
@@ -10,7 +10,6 @@ interface MetricsOverviewProps {
 export function MetricsOverview({ workflows, runCount = 0, scheduleCount = 0, loading }: MetricsOverviewProps) {
   const metrics = [
     { label: 'Total workflows', value: workflows.length, icon: Layers },
-    { label: 'Active workflows', value: workflows.filter(workflow => workflow.is_active).length, icon: CheckCircle2 },
     { label: 'Recent executions', value: runCount, icon: Activity },
     { label: 'Active schedules', value: scheduleCount, icon: Clock },
   ];

@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
-import { Trash2, Search, Play, Edit3, Webhook, Clock, ArrowUpRight, Plus, CheckCircle, AlertCircle, LayoutGrid, List, GitBranch } from 'lucide-react';
+import { Trash2, Search, Play, Edit3, Webhook, Clock, ArrowUpRight, Plus, LayoutGrid, List, GitBranch } from 'lucide-react';
 import { Workflow } from '../../types';
 
 interface WorkflowListProps {
@@ -41,11 +41,10 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({
     }
   };
   const [searchTerm, setSearchTerm] = useState('');
-  const [status, setStatus] = useState('all');
   const [sort, setSort] = useState('updated');
   const [view, setView] = useState<'grid' | 'list'>('grid');
 
-  const filteredWorkflows = workflows.filter(w => status === 'all' || w.is_active === (status === 'active')).filter(
+  const filteredWorkflows = workflows.filter(
     (w) =>
       w.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (w.description && w.description.toLowerCase().includes(searchTerm.toLowerCase()))
@@ -69,7 +68,6 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({
         </div>
 
         <div className="workflow-filters">
-          <select aria-label="Workflow status" value={status} onChange={event => setStatus(event.target.value)}><option value="all">All statuses</option><option value="active">Active</option><option value="inactive">Inactive</option></select>
           <select aria-label="Sort workflows" value={sort} onChange={event => setSort(event.target.value)}><option value="updated">Last updated</option><option value="name">Name A–Z</option></select>
           <div className="view-switch" aria-label="Workflow view"><button aria-label="Grid view" aria-pressed={view === 'grid'} onClick={() => setView('grid')}><LayoutGrid size={16} /></button><button aria-label="List view" aria-pressed={view === 'list'} onClick={() => setView('list')}><List size={16} /></button></div>
         </div>
@@ -80,9 +78,9 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({
         <div className="p-12 text-center rounded-2xl border border-dashed border-white/10 bg-[#19191c]/60">
           <h3 className="text-base font-bold text-white">No workflows found</h3>
           <p className="text-xs text-gray-400 mt-1 max-w-md mx-auto">
-            {searchTerm || status !== 'all' ? 'Try another search or status filter.' : 'Create your first visual workflow.'}
+            {searchTerm ? 'Try another search.' : 'Create your first visual workflow.'}
           </p>
-          {!searchTerm && status === 'all' && (
+          {!searchTerm && (
             <button
               onClick={onNewWorkflow}
               className="mt-5 inline-flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-[#ff6d5a] hover:bg-[#ff8575] text-white text-xs font-bold shadow-lg shadow-[#ff6d5a]/30 transition-all hover:scale-105"
@@ -94,7 +92,9 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({
         </div>
       )}
 
-      <p className="text-xs text-gray-500">{filteredWorkflows.length} of {workflows.length} workflows</p>
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-gray-400">
+        <p>{filteredWorkflows.length} of {workflows.length} workflows</p>
+      </div>
       {/* Workflow Cards Grid */}
       <div className={`workflow-collection ${view === 'list' ? 'workflow-list-view' : 'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4'}`}>
         {filteredWorkflows.map((workflow) => (
@@ -104,29 +104,18 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({
           >
             {/* Card Header */}
             <div className="workflow-card-info">
-              <div className="flex items-center justify-between mb-3">
-                <span
-                  className={`inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-[11px] font-bold border ${
-                    workflow.is_active
-                      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                      : 'bg-gray-500/10 text-gray-400 border-gray-500/20'
-                  }`}
-                >
-                  {workflow.is_active ? <CheckCircle size={12} /> : <AlertCircle size={12} />}
-                  <span>{workflow.is_active ? 'Active' : 'Inactive'}</span>
-                </span>
-
-                <span className="text-[10px] text-gray-400 font-mono">
+              {view === 'grid' && <div className="flex justify-end mb-3">
+                <span className="workflow-updated text-[10px] text-gray-400 font-mono">
                   Updated {new Date(workflow.updated_at).toLocaleDateString()}
                 </span>
-              </div>
+              </div>}
 
               <h3
                 className="text-base font-bold text-white group-hover:text-[#ff6d5a] transition-colors cursor-pointer flex items-center justify-between"
               >
-                <button onClick={() => onSelect(workflow)} className="flex w-full items-center justify-between text-left">
+                <button onClick={() => onSelect(workflow)} className="flex max-w-full items-center gap-3 text-left">
                   <span className="flex min-w-0 items-center gap-2"><GitBranch size={16} className="shrink-0 text-gray-500" /><span className="truncate">{workflow.name}</span></span>
-                  <ArrowUpRight size={16} className="text-[#ff6d5a]" />
+                  <ArrowUpRight size={16} className="shrink-0 text-[#ff6d5a]" />
                 </button>
               </h3>
 
@@ -136,6 +125,8 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({
             </div>
 
             {/* Quick Actions */}
+            <div className="workflow-card-controls">
+              {view === 'list' && <span className="workflow-updated text-[10px] text-gray-400 font-mono">Updated {new Date(workflow.updated_at).toLocaleDateString()}</span>}
             <div className="workflow-card-actions pt-4 border-t border-white/5 flex items-center justify-between">
               <div className="flex items-center space-x-1">
                 <button
@@ -176,6 +167,7 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({
                 <Play size={14} />
                 <span>Execute</span>
               </button>
+            </div>
             </div>
           </div>
         ))}

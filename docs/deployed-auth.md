@@ -10,6 +10,20 @@ middleware in this repository. Clerk middleware returns `missing or invalid
 authorization header`. These indicate a CORS configuration problem and a backend
 running legacy authentication (or older code).
 
+A follow-up check on October 17 at 06:42 UTC returned `missing or invalid
+authorization header`, consistent with the Clerk middleware now being deployed.
+However, the OPTIONS preflight still returned HTTP 200 **without**
+`Access-Control-Allow-Origin`. This blocks the browser's authenticated request
+after email-code verification. A successful OPTIONS status alone does not mean
+CORS is configured correctly.
+
+For this remaining failure, edit `HTTP_ALLOWED_ORIGINS` on the Render API service
+to include exactly `https://automata-azure.vercel.app` (no trailing slash, quotes,
+or `/users/me` path), then save and redeploy. If other origins are needed, separate
+them with commas. `CLERK_AUTHORIZED_PARTIES` is a separate token validation setting;
+setting it does not configure CORS. Changing a local `.env` or Vercel environment
+variable does not change the running Render service's environment.
+
 ## Render
 
 Set these variables on the **existing Render API service**, then redeploy the

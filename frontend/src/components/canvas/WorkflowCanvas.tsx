@@ -1,8 +1,11 @@
+import * as Dialog from '@radix-ui/react-dialog';
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import {
   ReactFlow,
   ReactFlowInstance,
   MiniMap,
+  useStore,
+  type MiniMapNodeProps,
   Controls,
   Background,
   useNodesState,
@@ -35,6 +38,27 @@ import { GraphNode, GraphEdge, WorkflowGraph, WorkflowRun } from '../../types';
 
 import { api } from '../../lib/api';
 import { NodeRunDetails } from '../runs/NodeRunDetails';
+
+// MiniMap node renderers share the SVG's graph coordinates.
+function ConnectedMiniMapNode({ id, x, y, width, height, color }: MiniMapNodeProps) {
+  const connections = useStore(state => state.edges.filter(edge => edge.source === id && !edge.hidden));
+  const lookup = useStore(state => state.nodeLookup);
+  return <g>
+    {connections.map(edge => {
+      const target = lookup.get(edge.target);
+      if (!target || target.hidden) return null;
+      const source = lookup.get(id);
+      const handle = source?.internals.handleBounds?.source?.find(item => item.id === edge.sourceHandle);
+      const sx = x + (handle ? handle.x + handle.width / 2 : width / 2);
+      const sy = y + height;
+      const tx = target.internals.positionAbsolute.x + (target.measured.width || 0) / 2;
+      const ty = target.internals.positionAbsolute.y;
+      const bend = Math.max(40, Math.abs(ty - sy) / 2);
+      return <path key={edge.id} data-minimap-edge={edge.id} d={`M ${sx} ${sy} C ${sx} ${sy + bend}, ${tx} ${ty - bend}, ${tx} ${ty}`} fill="none" stroke={edge.style?.stroke || '#ff6d5a'} strokeWidth={1.5} vectorEffect="non-scaling-stroke" pointerEvents="none" />;
+    })}
+    <rect x={x} y={y} width={width} height={height} rx={5} fill={color} />
+  </g>;
+}
 
 const nodeTypes = {
   custom: CustomNode,
@@ -269,8 +293,11 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
     return () => window.removeEventListener('beforeunload', warnBeforeUnload);
   }, [isDirty]);
 
+  const [discardOpen, setDiscardOpen] = useState(false);
+  const backButton = useRef<HTMLButtonElement>(null);
   const handleBack = () => {
-    if (!isDirty || window.confirm('Discard unsaved changes and return to the dashboard?')) onBack();
+    if (isDirty) setDiscardOpen(true);
+    else onBack();
   };
 
   const handleSaveWorkflow = async (): Promise<boolean> => {
@@ -316,17 +343,24 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
       <header className="h-16 border-b border-white/10 bg-[#121214] backdrop-blur-xl px-5 flex items-center justify-between z-20">
         <div className="flex items-center space-x-4">
           <button
+            ref={backButton}
             onClick={handleBack}
             className="p-2 rounded-xl text-gray-400 hover:bg-white/10 hover:text-white transition-colors"
             title="Back to Dashboard"
           >
             <ArrowLeft size={20} />
           </button>
-          <div className="w-64 xl:w-96">
+          <div className="editor-metadata w-64 xl:w-96">
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
+              onKeyDown={async event => {
+                if (event.key !== 'Enter' || event.nativeEvent.isComposing) return;
+                event.preventDefault();
+                const input = event.currentTarget;
+                if (await handleSaveWorkflow()) input.blur();
+              }}
               className="w-full bg-transparent font-bold text-lg text-white focus:outline-none focus:border-b focus:border-[#ff6d5a]"
               aria-label="Workflow name"
               placeholder="Workflow Name"
@@ -416,7 +450,7 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
           >
             <Background variant={BackgroundVariant.Dots} gap={20} size={1.2} color="#252c3d" />
             <Controls />
-            <MiniMap maskColor="rgba(13, 16, 23, 0.8)" nodeColor="#ff6d5a" />
+            <MiniMap maskColor="rgba(13, 16, 23, 0.8)" nodeColor="#ff6d5a" nodeComponent={ConnectedMiniMapNode} />
           </ReactFlow>
 
         </div>
@@ -484,6 +518,20 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
           />
         )}
       </div>
+
+      <Dialog.Root open={discardOpen} onOpenChange={setDiscardOpen}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="dialog-overlay" />
+          <Dialog.Content className="delete-workflow-dialog fixed left-1/2 top-1/2 z-[70] -translate-x-1/2 -translate-y-1/2 text-gray-100" onCloseAutoFocus={event => { event.preventDefault(); backButton.current?.focus(); }}>
+            <Dialog.Title className="text-lg font-semibold">Discard unsaved changes?</Dialog.Title>
+            <Dialog.Description className="mt-3 text-sm text-gray-400">Your changes will be lost when you return to the dashboard.</Dialog.Description>
+            <div className="mt-6 flex justify-end gap-3">
+              <Dialog.Close asChild><button className="rounded-lg border border-white/10 px-4 py-2 text-sm">Keep editing</button></Dialog.Close>
+              <button className="delete-workflow-confirm" onClick={onBack}>Discard changes</button>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
 
       {/* Toast Notification */}
       {toastMessage && (

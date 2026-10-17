@@ -118,3 +118,13 @@ export interface ValidationError {
   message: string;
   node_id?: string;
 }
+
+export interface ScheduleOptions {
+  frequency: 'hourly' | 'daily' | 'weekly' | 'monthly';
+  time: string;
+  weekday: number;
+  day: number;
+  minute: number;
+  timezone: string;
+}
+export type ScheduleInput = string | ScheduleOptions;

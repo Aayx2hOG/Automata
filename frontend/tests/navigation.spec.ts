@@ -28,7 +28,7 @@ test('sections preserve browser history and keyboard search supports navigation'
 
 test('workflow filters, view controls, and contextual links work', async ({ page }) => {
   await page.goto('/#/workflows');
-  await page.getByRole('combobox', { name: 'Workflow status' }).selectOption('inactive');
+  await page.getByRole('searchbox', { name: 'Filter workflows' }).fill('Daily');
   await expect(page.getByRole('button', { name: 'Daily reporting', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Customer onboarding', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'List view', exact: true }).click();
@@ -95,4 +95,50 @@ test('an outdated backend produces a visible delete error instead of a silent fa
   await expect(dialog.getByRole('button', { name: 'Delete workflow', exact: true })).toBeEnabled();
   await dialog.getByRole('button', { name: 'Cancel' }).click();
   await expect(page.getByRole('button', { name: 'Customer onboarding', exact: true })).toBeVisible();
+});
+
+
+test('schedule picker sends custom time options to the backend', async ({ page }) => {
+  await page.route('**/api/workflows/alpha/schedules', route => route.fulfill({ json: route.request().method() === 'POST' ? { id: 'schedule-new', workflow_id: 'alpha', is_active: true, cron_expression: 'CRON_TZ=Asia/Kolkata 45 14 * * 2' } : { schedules: [] } }));
+  await page.goto('/#/schedules');
+  await page.getByLabel('Repeat', { exact: true }).selectOption('weekly');
+  await page.getByLabel('Day of week').selectOption('2');
+  await page.getByLabel('Time', { exact: true }).fill('14:45');
+  await page.getByText('Change time zone', { exact: true }).click();
+  await page.getByLabel('Time zone', { exact: true }).selectOption('Asia/Kolkata');
+  const request = page.waitForRequest(request => request.method() === 'POST' && request.url().endsWith('/alpha/schedules'));
+  await page.getByRole('button', { name: 'Create schedule' }).click();
+  expect((await request).postDataJSON()).toEqual({ options: { frequency: 'weekly', time: '14:45', weekday: 2, day: 1, minute: 45, timezone: 'Asia/Kolkata' } });
+  await expect(page.getByText('CRON_TZ=Asia/Kolkata 45 14 * * 2', { exact: true })).toBeVisible();
+});
+
+test('blank workflow names can be submitted and use the server assigned name', async ({ page }) => {
+  await page.route('**/api/workflows', async route => {
+    if (route.request().method() !== 'POST') return route.fulfill({ json: { workflows } });
+    const body = route.request().postDataJSON();
+    expect(body.name).toBe('');
+    return route.fulfill({ json: { Workflow: { ...workflows[0], id: 'unnamed', name: 'untitled_1' }, Version: { graph: body.graph } } });
+  });
+  await page.goto('/#/workflows');
+  await page.getByRole('button', { name: 'Add Workflow' }).click();
+  await page.getByRole('button', { name: 'Create & Open Canvas' }).click();
+  await expect(page.getByLabel('Workflow name', { exact: true })).toHaveValue('untitled_1');
+});
+
+
+test('blank names work with older backends that require a name', async ({ page }) => {
+  const names: string[] = [];
+  await page.route('**/api/workflows', async route => {
+    if (route.request().method() !== 'POST') return route.fulfill({ json: { workflows: [...workflows, { ...workflows[0], id: 'existing-untitled', name: 'untitled_2' }] } });
+    const body = route.request().postDataJSON();
+    names.push(body.name);
+    if (!body.name) return route.fulfill({ status: 400, json: { error: 'Name is required' } });
+    return route.fulfill({ json: { Workflow: { ...workflows[0], id: 'unnamed', name: body.name }, Version: { graph: body.graph } } });
+  });
+  await page.goto('/#/workflows');
+  await page.getByRole('button', { name: 'Add Workflow' }).click();
+  await page.getByLabel('Workflow Name (optional)', { exact: true }).fill('   ');
+  await page.getByRole('button', { name: 'Create & Open Canvas' }).click();
+  await expect(page.getByLabel('Workflow name', { exact: true })).toHaveValue('untitled_3');
+  expect(names).toEqual(['', 'untitled_3']);
 });

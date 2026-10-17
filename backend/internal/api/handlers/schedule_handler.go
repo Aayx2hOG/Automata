@@ -28,7 +28,8 @@ func NewScheduleHandler(workflowService *services.WorkflowService, schedules rep
 }
 
 type createScheduleRequest struct {
-	CronExpression string `json:"cron_expression" validate:"required"`
+	CronExpression string                     `json:"cron_expression"`
+	Options        *scheduler.ScheduleOptions `json:"options"`
 }
 
 func (h *ScheduleHandler) Create(w http.ResponseWriter, r *http.Request) {
@@ -49,9 +50,16 @@ func (h *ScheduleHandler) Create(w http.ResponseWriter, r *http.Request) {
 		respondError(w, h.logger, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	if err := validate.Struct(req); err != nil {
-		respondError(w, h.logger, http.StatusBadRequest, validationMessage(err))
-		return
+	if req.Options != nil {
+		if req.CronExpression != "" {
+			respondError(w, h.logger, http.StatusBadRequest, "provide schedule options or cron, not both")
+			return
+		}
+		req.CronExpression, err = req.Options.CronExpression()
+		if err != nil {
+			respondError(w, h.logger, http.StatusBadRequest, err.Error())
+			return
+		}
 	}
 
 	if _, err := h.workflowService.GetWorkflow(r.Context(), workflowID, ownerID); err != nil {

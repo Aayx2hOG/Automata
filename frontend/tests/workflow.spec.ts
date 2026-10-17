@@ -10,9 +10,9 @@ test('create, save, reload, execute, schedule and sign a webhook', async ({ page
     throw new Error('Set E2E_LOCAL_AUTH=1 for a local JWT backend, or provide CLERK_TEST_STORAGE_STATE for Clerk.');
   }
   const name = `Browser workflow ${Date.now()}`;
-  await page.goto('/');
+  await page.goto('/#/home');
   await page.getByRole('button', { name: 'Add Workflow' }).click();
-  await page.getByPlaceholder('e.g. GitHub Webhook Notifier').fill(name);
+  await page.getByLabel('Workflow Name (optional)', { exact: true }).fill(name);
   await page.getByRole('button', { name: 'Create & Open Canvas' }).click();
   await expect(page.getByPlaceholder('Workflow Name')).toHaveValue(name);
   await expect(page.locator('.react-flow__node')).toHaveCount(1);
@@ -31,7 +31,7 @@ test('create, save, reload, execute, schedule and sign a webhook', async ({ page
   await page.getByRole('link', { name: 'Executions', exact: true }).click();
   await expect(page.getByText('Succeeded', {exact: true})).toBeVisible();
   await page.getByRole('link', { name: 'Schedules', exact: true }).click();
-  await page.getByRole('button', {name: 'Activate Schedule'}).click();
+  await page.getByRole('button', {name: 'Create schedule'}).click();
   await expect(page.getByText('Active Schedules (1)')).toBeVisible();
   await page.reload();
   await page.getByRole('link', { name: 'Schedules', exact: true }).click();

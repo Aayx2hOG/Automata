@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/Aayx2hOG/automata/internal/models"
 	"github.com/google/uuid"
@@ -41,10 +42,20 @@ func (r *pgWorkflowRepository) CreateWithInitialVersion(ctx context.Context, w *
 		return nil, err
 	}
 	defer tx.Rollback(context.Background())
+	// Serialize creation per owner so simultaneous unnamed workflows get distinct names.
+	if _, err = tx.Exec(ctx, `SELECT id FROM users WHERE id=$1 FOR UPDATE`, w.OwnerID); err != nil {
+		return nil, err
+	}
 	created := *w
+	created.Name = strings.TrimSpace(created.Name)
+	if created.Name == "" {
+		if err = tx.QueryRow(ctx, `SELECT 'untitled_' || (COALESCE(MAX(substring(name from '^untitled_([0-9]+)$')::numeric), 0) + 1)::text FROM workflows WHERE owner_id=$1`, w.OwnerID).Scan(&created.Name); err != nil {
+			return nil, err
+		}
+	}
 	if err = tx.QueryRow(ctx, `INSERT INTO workflows (owner_id, name, description, is_active)
  VALUES ($1,$2,$3,$4) RETURNING id, created_at, updated_at, webhook_secret`,
-		w.OwnerID, w.Name, w.Description, w.IsActive).Scan(&created.ID, &created.CreatedAt, &created.UpdatedAt, &created.WebhookSecret); err != nil {
+		w.OwnerID, created.Name, w.Description, w.IsActive).Scan(&created.ID, &created.CreatedAt, &created.UpdatedAt, &created.WebhookSecret); err != nil {
 		return nil, fmt.Errorf("insert workflow: %w", err)
 	}
 	version := &models.WorkflowVersion{WorkflowID: created.ID, Version: 1, Graph: graph}

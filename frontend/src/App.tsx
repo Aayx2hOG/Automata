@@ -12,7 +12,7 @@ import { WorkflowCanvas } from './components/canvas/WorkflowCanvas';
 import { RunsList } from './components/runs/RunsList';
 import { SchedulesManager } from './components/schedules/SchedulesManager';
 import { WebhookTester } from './components/webhooks/WebhookTester';
-import { Workflow, WorkflowGraph, WorkflowRun, Schedule } from './types';
+import { Workflow, WorkflowGraph, WorkflowRun, Schedule, ScheduleInput } from './types';
 import { api } from './lib/api';
 
 export const Workspace: React.FC = () => {
@@ -94,7 +94,7 @@ export const Workspace: React.FC = () => {
     setRuns(prev => [run, ...prev.filter(r => r.id !== run.id)]);
     return run;
   };
-  const handleCreateSchedule = async (workflowId: string, cronExpression: string) => {
+  const handleCreateSchedule = async (workflowId: string, cronExpression: ScheduleInput) => {
     const schedule = await api.schedules.create(workflowId, cronExpression);
     setSchedules(prev => [schedule, ...prev]);
   };
@@ -198,10 +198,16 @@ export const Workspace: React.FC = () => {
 
 const MainApp = () => {
   const { user, isLoading, error } = useAuth();
+  const [showWelcome, setShowWelcome] = useState(() => !destinations.some(tab => window.location.hash === `#/${tab.id}`));
+  useEffect(() => {
+    const sync = () => setShowWelcome(!destinations.some(tab => window.location.hash === `#/${tab.id}`));
+    window.addEventListener('hashchange', sync);
+    return () => window.removeEventListener('hashchange', sync);
+  }, []);
   // An unresolved session is not a signed-out session. Keep the welcome page
   // unmounted until we know whether the user belongs in the workspace.
   if (isLoading) return null;
-  return user ? <Workspace key={user.id} /> : <AuthPage error={error} onRetry={() => window.location.reload()} />;
+  return user && !showWelcome ? <Workspace key={user.id} /> : <AuthPage error={error} onRetry={() => window.location.reload()} />;
 };
 
 export default function App() {

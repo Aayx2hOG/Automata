@@ -1,3 +1,4 @@
+import type { ScheduleInput } from '../types';
 import { AuthTokens, Credential, CredentialInput, Schedule, User, Workflow, WorkflowGraph, WorkflowRun, WorkflowVersion } from '../types';
 
 export const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
@@ -147,10 +148,25 @@ export const api = {
       return request<{ workflow: Workflow; active_version?: WorkflowVersion }>(`/workflows/${id}`);
     },
     create: async (name: string, description: string, graph: WorkflowGraph): Promise<{ Workflow: Workflow; Version: WorkflowVersion }> => {
-      return request<{ Workflow: Workflow; Version: WorkflowVersion }>('/workflows', {
+      const create = (workflowName: string) => request<{ Workflow: Workflow; Version: WorkflowVersion }>('/workflows', {
         method: 'POST',
-        body: JSON.stringify({ name, description, graph }),
+        body: JSON.stringify({ name: workflowName, description, graph }),
       });
+      const trimmedName = name.trim();
+      try {
+        return await create(trimmedName);
+      } catch (error) {
+        // Older servers require a name. Retry only their explicit validation failure;
+        // current servers assign unnamed workflows atomically in the database.
+        if (trimmedName || !(error instanceof ApiError) || error.status !== 400 || !/name.*required/i.test(error.message)) throw error;
+        const { workflows = [] } = await request<{ workflows: Workflow[] }>('/workflows');
+        let next = 1n;
+        for (const workflow of workflows) {
+          const suffix = /^untitled_([0-9]+)$/.exec(workflow.name)?.[1];
+          if (suffix && BigInt(suffix) >= next) next = BigInt(suffix) + 1n;
+        }
+        return create(`untitled_${next}`);
+      }
     },
     update: async (id: string, name: string, description: string, graph: WorkflowGraph): Promise<{active_version: WorkflowVersion}> => request(`/workflows/${id}`, {method: 'PUT', body: JSON.stringify({name, description, graph})}),
     run: async (id: string): Promise<WorkflowRun> => {
@@ -183,10 +199,10 @@ export const api = {
       const res = await request<{ schedules: Schedule[] }>(`/workflows/${workflowId}/schedules`);
       return res.schedules || [];
     },
-    create: async (workflowId: string, cronExpression: string): Promise<Schedule> => {
+    create: async (workflowId: string, schedule: ScheduleInput): Promise<Schedule> => {
       return request<Schedule>(`/workflows/${workflowId}/schedules`, {
         method: 'POST',
-        body: JSON.stringify({ cron_expression: cronExpression }),
+        body: JSON.stringify(typeof schedule === 'string' ? { cron_expression: schedule } : { options: schedule }),
       });
     },
     deactivate: async (scheduleId: string): Promise<void> => {
