@@ -55,7 +55,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
   const contentType = response.headers.get('content-type');
   const isJson = contentType && contentType.includes('application/json');
-  const data = isJson ? await response.json() : await response.text();
+  const data = response.status === 204 ? null : isJson ? await response.json() : await response.text();
 
   if (!response.ok) {
     // If 401 Unauthorized and we have a refresh token, attempt refresh
@@ -84,7 +84,10 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
       return result as T;
     }
     const errMsg = typeof data === 'object' ? (data?.errors?.map((e: {node_id?: string; message: string}) => `${e.node_id ? e.node_id + ': ' : ''}${e.message}`).join('; ') || data?.error || data?.message || 'API error') : data;
-    throw new ApiError(errMsg, response.status, data);
+    const fallback = response.status === 405
+      ? 'This server does not support this action yet. Restart the backend with the latest code and try again.'
+      : `Request failed (${response.status}). Please try again.`;
+    throw new ApiError(typeof errMsg === 'string' && errMsg.trim() ? errMsg : fallback, response.status, data);
   }
 
   return data as T;
@@ -135,6 +138,7 @@ export const api = {
   },
 
   workflows: {
+    delete: (id: string): Promise<void> => request(`/workflows/${id}`, { method: 'DELETE', signal: AbortSignal.timeout(15000) }),
     list: async (): Promise<Workflow[]> => {
       const res = await request<{ workflows: Workflow[] }>('/workflows');
       return res.workflows || [];

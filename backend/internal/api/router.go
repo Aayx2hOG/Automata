@@ -93,6 +93,7 @@ func NewRouter(
 		r.Get("/", workflowHandler.List)
 		r.Get("/{id}", workflowHandler.Get)
 		r.Put("/{id}", workflowHandler.Update)
+		r.Delete("/{id}", workflowHandler.Delete)
 		r.Post("/{id}/run", workflowHandler.Run)
 	})
 

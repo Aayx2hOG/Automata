@@ -205,3 +205,32 @@ func (h *WorkflowHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	respondJSON(w, h.logger, http.StatusOK, map[string]any{"active_version": version})
 }
+
+func (h *WorkflowHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	ownerID, ok := middleware.UserIDFromContext(r.Context())
+	if !ok {
+		respondError(w, h.logger, http.StatusUnauthorized, "unable to identify user")
+		return
+	}
+	id, err := parseWorkfloeID(r)
+	if err != nil {
+		respondError(w, h.logger, http.StatusBadRequest, "invalid workflow id")
+		return
+	}
+	if err = h.workflowService.DeleteWorkflow(r.Context(), id, ownerID); err != nil {
+		switch {
+		case errors.Is(err, models.ErrWorkflowNotFound):
+			respondError(w, h.logger, http.StatusNotFound, "workflow not found")
+		case errors.Is(err, models.ErrWorkflowBusy):
+			respondError(w, h.logger, http.StatusConflict, err.Error())
+		default:
+			if respondDatabaseUnavailable(w, h.logger, err) {
+				return
+			}
+			h.logger.Error("delete workflow failed", zap.Error(err))
+			respondError(w, h.logger, http.StatusInternalServerError, "unable to delete workflow; please retry")
+		}
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}

@@ -109,7 +109,7 @@ export const RunsList: React.FC<RunsListProps> = ({ runs, onRefresh }) => {
           onClick={handleRefresh}
           disabled={isRefreshing}
           aria-busy={isRefreshing}
-          className="flex items-center space-x-2 px-3.5 py-2 rounded-xl bg-[#161a23] border border-white/10 hover:bg-[#1a202c] text-xs font-semibold text-gray-300 transition-all hover:border-white/20 active:scale-95 disabled:cursor-wait disabled:opacity-70"
+          className="flex items-center space-x-2 px-3.5 py-2 rounded-xl bg-[#19191c] border border-white/10 hover:bg-[#1a202c] text-xs font-semibold text-gray-300 transition-all hover:border-white/20 active:scale-95 disabled:cursor-wait disabled:opacity-70"
         >
           <RefreshCw size={14} className={isRefreshing ? 'animate-spin' : ''} />
           <span>{isRefreshing ? 'Refreshing...' : 'Refresh Logs'}</span>
@@ -121,7 +121,7 @@ export const RunsList: React.FC<RunsListProps> = ({ runs, onRefresh }) => {
 
       {/* Empty State */}
       {runs.length === 0 && (
-        <div className="p-12 text-center rounded-2xl border border-white/10 bg-[#161a23]/60">
+        <div className="p-12 text-center rounded-2xl border border-white/10 bg-[#19191c]/60">
           <Clock className="w-10 h-10 text-gray-500 mx-auto mb-3" />
           <h3 className="text-sm font-bold text-white">No execution runs recorded yet</h3>
           <p className="text-xs text-gray-400 mt-1">Trigger a workflow manually or send a webhook payload to see runs.</p>
@@ -130,10 +130,10 @@ export const RunsList: React.FC<RunsListProps> = ({ runs, onRefresh }) => {
 
       {/* Runs Table */}
       {runs.length > 0 && (
-        <div className="rounded-2xl border border-white/10 bg-[#161a23] overflow-hidden shadow-2xl">
+        <div className="rounded-2xl border border-white/10 bg-[#19191c] overflow-hidden shadow-2xl">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-[#0d1017] text-gray-400 uppercase tracking-wider font-bold border-b border-white/10">
+              <thead className="bg-[#101012] text-gray-400 uppercase tracking-wider font-bold border-b border-white/10">
                 <tr>
                   <th className="px-5 py-3.5">Run ID</th>
                   <th className="px-5 py-3.5">Workflow ID</th>
@@ -174,8 +174,8 @@ export const RunsList: React.FC<RunsListProps> = ({ runs, onRefresh }) => {
 
       {/* Selected Run Details Drawer */}
       {selectedRun && (
-        <div className="fixed inset-0 bg-[#0b0e14]/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="bg-[#161a23] border border-white/10 rounded-2xl max-w-3xl w-full p-6 shadow-2xl space-y-6">
+        <div className="fixed inset-0 bg-[#0c0c0e]/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-[#19191c] border border-white/10 rounded-2xl max-w-3xl w-full p-6 shadow-2xl space-y-6">
             <div className="flex items-center justify-between border-b border-white/10 pb-4">
               <div>
                 <h3 className="text-base font-bold text-white flex items-center space-x-2">
@@ -193,7 +193,7 @@ export const RunsList: React.FC<RunsListProps> = ({ runs, onRefresh }) => {
             </div>
 
             {/* Status */}
-            <div className="flex items-center justify-between p-4 rounded-xl bg-[#0d1017] border border-white/5">
+            <div className="flex items-center justify-between p-4 rounded-xl bg-[#101012] border border-white/5">
               <div>
                 <span className="text-xs text-gray-400 uppercase font-bold">Trigger: {selectedRun.trigger_type}</span>
                 <div className="mt-1">{getStatusBadge(selectedRun.status)}</div>
@@ -215,7 +215,7 @@ export const RunsList: React.FC<RunsListProps> = ({ runs, onRefresh }) => {
             <NodeRunDetails nodes={selectedRun.nodes} />
             {!selectedRun.nodes?.length && <div className="space-y-2">
               <h4 className="text-xs font-bold text-gray-300 uppercase tracking-wider">Node Step Outputs (JSON)</h4>
-              <div className="p-4 rounded-xl bg-[#0d1017] border border-white/10 text-emerald-400 font-mono text-xs max-h-64 overflow-y-auto">
+              <div className="p-4 rounded-xl bg-[#101012] border border-white/10 text-emerald-400 font-mono text-xs max-h-64 overflow-y-auto">
                 {selectedRun.outputs ? (
                   <pre>{JSON.stringify(selectedRun.outputs, null, 2)}</pre>
                 ) : (

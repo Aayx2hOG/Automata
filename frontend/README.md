@@ -83,3 +83,17 @@ For database-backed Go tests, run from `backend/` against a dedicated test datab
 ```sh
 TEST_DATABASE_URL='postgres://automata:automata_dev_password@localhost:5433/automata_test?sslmode=disable' go test ./internal/repositories -race
 ```
+
+### Workspace navigation
+
+The workspace includes a persistent desktop sidebar and a mobile navigation drawer.
+Section URLs (for example, `/#/workflows`) support reloads and browser back/forward.
+Use **Ctrl+K** or **⌘K** to search pages and saved workflows, or create a workflow.
+The workflow library supports status filtering, name/update sorting, and grid/list views.
+Workflow card shortcuts keep the selected workflow when opening schedules or webhooks.
+
+Dialogs use Radix UI for focus trapping and Escape dismissal; workspace search uses cmdk.
+Run `npx playwright test tests/home.spec.ts tests/editor.spec.ts tests/navigation.spec.ts`
+for the isolated UI regressions, without a backend. Chromium and its system dependencies
+must be installed (`npx playwright install --with-deps chromium`). The full workflow
+suite still requires the authenticated test backend described above.

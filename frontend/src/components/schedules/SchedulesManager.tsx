@@ -4,6 +4,7 @@ import { Schedule, Workflow } from '../../types';
 
 interface SchedulesManagerProps {
   workflows: Workflow[];
+  initialWorkflowId?: string;
   schedules: Schedule[];
   onCreateSchedule: (workflowId: string, cronExpression: string) => Promise<void>;
   onDeactivateSchedule: (scheduleId: string) => Promise<void>;
@@ -11,11 +12,12 @@ interface SchedulesManagerProps {
 
 export const SchedulesManager: React.FC<SchedulesManagerProps> = ({
   workflows,
+  initialWorkflowId = '',
   schedules,
   onCreateSchedule,
   onDeactivateSchedule,
 }) => {
-  const [selectedId, setSelectedWorkflowId] = useState('');
+  const [selectedId, setSelectedWorkflowId] = useState(initialWorkflowId);
   const selectedWorkflowId = workflows.find(w => w.id === selectedId)?.id || workflows[0]?.id || '';
   const [cronExpression, setCronExpression] = useState('*/5 * * * *');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -46,7 +48,7 @@ export const SchedulesManager: React.FC<SchedulesManagerProps> = ({
       </div>
 
       {/* Schedule Creation Card */}
-      <div className="p-6 rounded-2xl bg-[#161a23] border border-white/10 shadow-xl space-y-4">
+      <div className="p-6 rounded-2xl bg-[#19191c] border border-white/10 shadow-xl space-y-4">
         <h3 className="text-sm font-bold text-white flex items-center space-x-2">
           <Plus size={16} className="text-[#ff6d5a]" />
           <span>Create New Schedule</span>
@@ -56,14 +58,14 @@ export const SchedulesManager: React.FC<SchedulesManagerProps> = ({
           <div>
             <label className="text-xs font-bold text-gray-300 uppercase tracking-wider">Select Workflow</label>
             {workflows.length === 0 ? (
-              <div className="mt-1 rounded-xl border border-dashed border-white/15 bg-[#0d1017] px-3 py-3 text-sm text-gray-500">
+              <div className="mt-1 rounded-xl border border-dashed border-white/15 bg-[#101012] px-3 py-3 text-sm text-gray-500">
                 No workflows created yet. Create a workflow before adding a schedule.
               </div>
             ) : (
               <select
                 value={selectedWorkflowId}
                 onChange={(e) => setSelectedWorkflowId(e.target.value)}
-                className="mt-1 w-full bg-[#0d1017] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#ff6d5a]"
+                className="mt-1 w-full bg-[#101012] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#ff6d5a]"
               >
                 {workflows.map((wf) => (
                   <option key={wf.id} value={wf.id}>
@@ -81,7 +83,7 @@ export const SchedulesManager: React.FC<SchedulesManagerProps> = ({
               value={cronExpression}
               onChange={(e) => setCronExpression(e.target.value)}
               placeholder="*/5 * * * *"
-              className="mt-1 w-full bg-[#0d1017] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-amber-300 font-mono focus:outline-none focus:border-[#ff6d5a]"
+              className="mt-1 w-full bg-[#101012] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-amber-300 font-mono focus:outline-none focus:border-[#ff6d5a]"
             />
           </div>
 
@@ -96,7 +98,7 @@ export const SchedulesManager: React.FC<SchedulesManagerProps> = ({
       </div>
 
       {/* Active Schedules Table */}
-      <div className="rounded-2xl border border-white/10 bg-[#161a23] overflow-hidden shadow-2xl">
+      <div className="rounded-2xl border border-white/10 bg-[#19191c] overflow-hidden shadow-2xl">
         <div className="px-6 py-4 border-b border-white/10 font-bold text-sm text-white flex items-center space-x-2">
           <Calendar size={18} className="text-amber-400" />
           <span>Active Schedules ({schedules.length})</span>
@@ -108,7 +110,7 @@ export const SchedulesManager: React.FC<SchedulesManagerProps> = ({
           </div>
         ) : (
           <table className="w-full text-left text-xs">
-            <thead className="bg-[#0d1017] text-gray-400 uppercase tracking-wider font-bold border-b border-white/10">
+            <thead className="bg-[#101012] text-gray-400 uppercase tracking-wider font-bold border-b border-white/10">
               <tr>
                 <th className="px-6 py-3">Schedule ID</th>
                 <th className="px-6 py-3">Workflow ID</th>

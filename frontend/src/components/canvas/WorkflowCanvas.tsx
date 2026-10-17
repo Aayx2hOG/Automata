@@ -311,9 +311,9 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
   };
 
   return (
-    <div className="relative w-full h-screen bg-[#0d1017] flex flex-col overflow-hidden text-gray-100 font-sans">
+    <div className="relative w-full h-screen bg-[#101012] flex flex-col overflow-hidden text-gray-100 font-sans">
       {/* n8n Style Canvas Header */}
-      <header className="h-16 border-b border-white/10 bg-[#10141d] backdrop-blur-xl px-5 flex items-center justify-between z-20">
+      <header className="h-16 border-b border-white/10 bg-[#121214] backdrop-blur-xl px-5 flex items-center justify-between z-20">
         <div className="flex items-center space-x-4">
           <button
             onClick={handleBack}
@@ -351,7 +351,7 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
           <button
             onClick={handleSaveWorkflow}
             disabled={isSaving || isRunning}
-            className="flex items-center space-x-2 px-4 py-2 rounded-xl bg-[#161a23] hover:bg-[#1f2533] text-sm font-medium text-gray-200 border border-white/10 transition-colors disabled:opacity-50"
+            className="flex items-center space-x-2 px-4 py-2 rounded-xl bg-[#19191c] hover:bg-[#1f2533] text-sm font-medium text-gray-200 border border-white/10 transition-colors disabled:opacity-50"
           >
             <Save size={16} className="text-[#ff6d5a]" />
             <span>{isSaving ? 'Saving...' : 'Save Graph'}</span>
@@ -371,7 +371,7 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
       {/* Main Canvas Area */}
       <div className="relative flex-1 flex">
         {/* Left n8n Node Library Sidebar */}
-        <aside className="w-64 border-r border-white/10 bg-[#10141d] backdrop-blur-md p-4 z-10 flex flex-col space-y-4">
+        <aside className="w-64 border-r border-white/10 bg-[#121214] backdrop-blur-md p-4 z-10 flex flex-col space-y-4">
           <div>
             <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 flex items-center space-x-1.5">
               <Sparkles size={14} className="text-[#ff6d5a]" />
@@ -423,7 +423,7 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
 
           {/* Execution details stay beside the graph instead of covering nodes. */}
           {runResult && (
-            <aside aria-label="Execution results" className="w-80 xl:w-96 shrink-0 bg-[#10141d] border-l border-white/10 p-4 space-y-4 overflow-y-auto">
+            <aside aria-label="Execution results" className="w-80 xl:w-96 shrink-0 bg-[#121214] border-l border-white/10 p-4 space-y-4 overflow-y-auto">
               <div className="flex items-center justify-between">
                 <div className="flex flex-wrap items-center gap-2">
                   {runResult.status === 'succeeded' ? (
@@ -450,7 +450,7 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
               <NodeRunDetails nodes={runResult.nodes} />
 
               {!runResult.nodes?.length && runResult.outputs && (
-                <div className="text-xs font-mono bg-[#0d1017] p-2.5 rounded text-emerald-400 max-h-32 overflow-y-auto">
+                <div className="text-xs font-mono bg-[#101012] p-2.5 rounded text-emerald-400 max-h-32 overflow-y-auto">
                   <pre>{JSON.stringify(runResult.outputs, null, 2)}</pre>
                 </div>
               )}

@@ -9,10 +9,12 @@ import (
 	"github.com/Aayx2hOG/automata/internal/models"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type WorkflowRepository interface {
+	Delete(ctx context.Context, id, ownerID uuid.UUID) error
 	UpdateWithVersion(ctx context.Context, id, ownerID uuid.UUID, name, description string, graph models.WorkflowGraph) (*models.WorkflowVersion, error)
 	Create(ctx context.Context, w *models.Workflow) error
 	CreateWithInitialVersion(ctx context.Context, w *models.Workflow, graph models.WorkflowGraph) (*models.WorkflowVersion, error)
@@ -156,4 +158,48 @@ func (r *pgWorkflowRepository) UpdateWithVersion(ctx context.Context, id, ownerI
 		return nil, err
 	}
 	return v, nil
+}
+
+func (r *pgWorkflowRepository) Delete(ctx context.Context, id, ownerID uuid.UUID) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(context.Background())
+	var locked uuid.UUID
+	err = tx.QueryRow(ctx, `SELECT id FROM workflows WHERE id=$1 AND owner_id=$2 FOR UPDATE`, id, ownerID).Scan(&locked)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return models.ErrWorkflowNotFound
+	}
+	if err != nil {
+		return err
+	}
+	rows, err := tx.Query(ctx, `SELECT id FROM schedules WHERE workflow_id=$1 FOR UPDATE NOWAIT`, id)
+	if err != nil {
+		return err
+	}
+	for rows.Next() {
+	}
+	rows.Close()
+	if err = rows.Err(); err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "55P03" {
+			return models.ErrWorkflowBusy
+		}
+		return err
+	}
+	var busy bool
+	err = tx.QueryRow(ctx, `SELECT EXISTS (
+ SELECT 1 FROM workflow_runs r WHERE r.workflow_id=$1 AND
+ (r.status IN ('pending','running') OR EXISTS (SELECT 1 FROM schedule_outbox o WHERE o.run_id=r.id)))`, id).Scan(&busy)
+	if err != nil {
+		return err
+	}
+	if busy {
+		return models.ErrWorkflowBusy
+	}
+	if _, err = tx.Exec(ctx, `DELETE FROM workflows WHERE id=$1 AND owner_id=$2`, id, ownerID); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }

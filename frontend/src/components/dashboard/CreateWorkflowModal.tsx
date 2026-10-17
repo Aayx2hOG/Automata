@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import * as Dialog from '@radix-ui/react-dialog';
+import React, { useState, useRef } from 'react';
 import { X, Webhook, Clock, GitFork, Plus } from 'lucide-react';
 import { WorkflowGraph } from '../../types';
 
@@ -88,7 +89,7 @@ export const CreateWorkflowModal: React.FC<CreateWorkflowModalProps> = ({ isOpen
 
   const [error, setError] = useState<string | null>(null);
 
-  if (!isOpen) return null;
+  const returnFocus = useRef<HTMLElement | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -107,16 +108,17 @@ export const CreateWorkflowModal: React.FC<CreateWorkflowModalProps> = ({ isOpen
   };
 
   return (
-    <div className="fixed inset-0 bg-[#0b0e14]/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-      <div className="bg-[#161a23] border border-white/10 rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-6">
+    <Dialog.Root open={isOpen} onOpenChange={open => { if (!open && !isSubmitting) onClose(); }}>
+      <Dialog.Portal><Dialog.Overlay className="dialog-overlay" />
+      <Dialog.Content onOpenAutoFocus={() => { returnFocus.current = document.activeElement as HTMLElement; }} onCloseAutoFocus={event => { event.preventDefault(); returnFocus.current?.focus(); }} aria-describedby={undefined} className="workflow-dialog bg-[#19191c] border border-white/10 rounded-2xl p-6 shadow-2xl space-y-6">
         <div className="flex items-center justify-between border-b border-white/10 pb-4">
           <div className="flex items-center space-x-2">
             <div className="p-2 rounded-xl bg-[#ff6d5a]/10 text-[#ff6d5a]">
               <Plus size={20} />
             </div>
-            <h2 className="text-base font-bold text-white uppercase tracking-wider">Create New Workflow</h2>
+            <Dialog.Title className="text-lg font-semibold text-white">Create New Workflow</Dialog.Title>
           </div>
-          <button type="button" aria-label="Close new workflow" onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
+          <button type="button" aria-label="Close new workflow" disabled={isSubmitting} onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
             <X size={20} />
           </button>
         </div>
@@ -133,7 +135,7 @@ export const CreateWorkflowModal: React.FC<CreateWorkflowModalProps> = ({ isOpen
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g. GitHub Webhook Notifier"
-                className="mt-1 w-full bg-[#0d1017] border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#ff6d5a]"
+                className="mt-1 w-full bg-[#101012] border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#ff6d5a]"
               />
             </div>
 
@@ -145,7 +147,7 @@ export const CreateWorkflowModal: React.FC<CreateWorkflowModalProps> = ({ isOpen
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Optional workflow description..."
-                className="mt-1 w-full bg-[#0d1017] border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#ff6d5a]"
+                className="mt-1 w-full bg-[#101012] border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#ff6d5a]"
               />
             </div>
           </div>
@@ -183,7 +185,7 @@ export const CreateWorkflowModal: React.FC<CreateWorkflowModalProps> = ({ isOpen
           <div className="flex items-center justify-end space-x-3 pt-4 border-t border-white/10">
             <button
               type="button"
-              onClick={onClose}
+              disabled={isSubmitting} onClick={onClose}
               className="px-4 py-2 rounded-xl text-xs text-gray-400 hover:text-white transition-colors"
             >
               Cancel
@@ -198,7 +200,7 @@ export const CreateWorkflowModal: React.FC<CreateWorkflowModalProps> = ({ isOpen
             </button>
           </div>
         </form>
-      </div>
-    </div>
+      </Dialog.Content></Dialog.Portal>
+    </Dialog.Root>
   );
 };

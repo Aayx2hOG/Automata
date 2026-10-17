@@ -3,6 +3,7 @@ package models
 import "errors"
 
 var (
+	ErrWorkflowBusy            = errors.New("workflow has queued or running executions; wait for them to finish before deleting")
 	ErrRunQuotaExceeded        = errors.New("run quota exceeded; retry later")
 	ErrQueueFull               = errors.New("execution backlog is full; retry later")
 	ErrorUserNotFound          = errors.New("user not found")

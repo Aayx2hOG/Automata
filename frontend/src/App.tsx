@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { AuthProvider } from './context/AuthContext';
 import { useAuth } from './context/useAuth';
 import { AuthPage } from './components/auth/AuthPage';
 import { Header } from './components/common/Header';
+import { destinations, type WorkspaceTab } from './lib/navigation';
 import { LandingPage } from './components/home/LandingPage';
 import { MetricsOverview } from './components/dashboard/MetricsOverview';
 import { WorkflowList } from './components/dashboard/WorkflowList';
@@ -15,7 +16,19 @@ import { Workflow, WorkflowGraph, WorkflowRun, Schedule } from './types';
 import { api } from './lib/api';
 
 export const Workspace: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'home' | 'workflows' | 'runs' | 'schedules' | 'webhooks'>('home');
+  const readTab = (): WorkspaceTab => destinations.find(tab => `#/${tab.id}` === window.location.hash)?.id || 'home';
+  const [activeTab, updateActiveTab] = useState<WorkspaceTab>(readTab);
+  const [selectedWorkflowId, setSelectedWorkflowId] = useState('');
+  const setActiveTab = (tab: WorkspaceTab) => {
+    window.location.hash = `/${tab}`;
+    updateActiveTab(tab);
+  };
+  useEffect(() => {
+    const onHashChange = () => updateActiveTab(readTab());
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
+  const deletedWorkflowIds = useRef(new Set<string>());
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [runs, setRuns] = useState<WorkflowRun[]>([]);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
@@ -33,7 +46,7 @@ export const Workspace: React.FC = () => {
       try {
         const [items, history] = await Promise.all([api.workflows.list(), api.runs.list()]);
         const groups = await Promise.all(items.map(w => api.schedules.list(w.id)));
-        if (!stopped) {setWorkflows(items); setRuns(history); setSchedules(groups.flat().filter(s => s.is_active)); setError(null);}
+        if (!stopped) {setWorkflows(items.filter(w => !deletedWorkflowIds.current.has(w.id))); setRuns(history.filter(r => !deletedWorkflowIds.current.has(r.workflow_id))); setSchedules(groups.flat().filter(s => s.is_active && !deletedWorkflowIds.current.has(s.workflow_id))); setError(null);}
       } catch (err) { if (!stopped) setError((err as Error).message); }
       finally { if (!stopped) {setLoading(false); timer = setTimeout(refresh, 3000);} }
     };
@@ -56,6 +69,14 @@ export const Workspace: React.FC = () => {
       setActiveGraph(details.active_version.graph); setActiveWorkflow(details.workflow);
     } catch (err) {setError((err as Error).message);}
     finally {setLoading(false);}
+  };
+  const handleDeleteWorkflow = async (workflow: Workflow) => {
+    await api.workflows.delete(workflow.id);
+    deletedWorkflowIds.current.add(workflow.id);
+    setWorkflows(items => items.filter(item => item.id !== workflow.id));
+    setRuns(items => items.filter(item => item.workflow_id !== workflow.id));
+    setSchedules(items => items.filter(item => item.workflow_id !== workflow.id));
+    setSelectedWorkflowId(current => current === workflow.id ? '' : current);
   };
   const handleCreateWorkflow = async (name: string, description: string, graph: WorkflowGraph) => {
     const created = await api.workflows.create(name, description, graph);
@@ -101,14 +122,17 @@ export const Workspace: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#090d16] text-gray-100 flex flex-col font-sans">
+    <div className="workspace-shell min-h-screen text-gray-100 font-sans">
       <Header
+        workflows={workflows}
+        onOpenWorkflow={handleOpenWorkflowCanvas}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         onNewWorkflow={() => setIsCreateModalOpen(true)}
       />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto p-6 md:p-8">
+      <main id="workspace-content" tabIndex={-1} className="workspace-content">
+        {activeTab !== 'home' && <div className="page-heading"><p className="eyebrow">AUTOMATION WORKSPACE</p><h1>{destinations.find(tab => tab.id === activeTab)?.label}</h1><p>{destinations.find(tab => tab.id === activeTab)?.description}</p></div>}
         {error && <div role="alert" className="mb-4 p-4 rounded-xl bg-rose-950 text-rose-200">{error}</div>}
         {loading && <p role="status" className="mb-4 text-gray-400">Loading workflows…</p>}
         {activeTab === 'home' && (
@@ -127,16 +151,18 @@ export const Workspace: React.FC = () => {
             workflows={workflows}
             runCount={runs.length}
             scheduleCount={schedules.length}
+            loading={loading}
           />
         )}
 
         {activeTab === 'workflows' && (
           <WorkflowList
+            onDelete={handleDeleteWorkflow}
             workflows={workflows}
             onSelect={handleOpenWorkflowCanvas}
             onRun={id => handleRunWorkflow(id).catch(err => {setError(err.message);})}
-            onOpenWebhook={() => setActiveTab('webhooks')}
-            onOpenSchedule={() => setActiveTab('schedules')}
+            onOpenWebhook={workflow => { setSelectedWorkflowId(workflow.id); setActiveTab('webhooks'); }}
+            onOpenSchedule={workflow => { setSelectedWorkflowId(workflow.id); setActiveTab('schedules'); }}
             onNewWorkflow={() => setIsCreateModalOpen(true)}
           />
         )}
@@ -147,6 +173,8 @@ export const Workspace: React.FC = () => {
 
         {activeTab === 'schedules' && (
           <SchedulesManager
+            key={selectedWorkflowId}
+            initialWorkflowId={selectedWorkflowId}
             workflows={workflows}
             schedules={schedules}
             onCreateSchedule={handleCreateSchedule}
@@ -155,7 +183,7 @@ export const Workspace: React.FC = () => {
         )}
 
         {activeTab === 'webhooks' && (
-          <WebhookTester workflows={workflows} />
+          <WebhookTester key={selectedWorkflowId} initialWorkflowId={selectedWorkflowId} workflows={workflows} />
         )}
       </main>
 

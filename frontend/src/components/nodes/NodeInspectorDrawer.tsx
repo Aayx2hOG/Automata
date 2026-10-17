@@ -70,9 +70,9 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
   };
 
   return (
-    <div className="fixed right-0 top-16 bottom-0 w-96 bg-[#161a23] border-l border-white/10 backdrop-blur-xl z-30 shadow-2xl flex flex-col transition-all duration-300">
+    <div className="fixed right-0 top-16 bottom-0 w-96 bg-[#19191c] border-l border-white/10 backdrop-blur-xl z-30 shadow-2xl flex flex-col transition-all duration-300">
       {/* Header */}
-      <div className="flex items-center justify-between px-5 py-4 border-b border-white/10 bg-[#10141d]">
+      <div className="flex items-center justify-between px-5 py-4 border-b border-white/10 bg-[#121214]">
         <div className="flex items-center space-x-2">
           <Sliders className="text-[#ff6d5a]" size={18} />
           <h3 className="text-sm font-bold text-white uppercase tracking-wider">Node Inspector</h3>
@@ -99,7 +99,7 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
         <div className="space-y-3">
           <div>
             <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Node ID</label>
-            <div className="mt-1 font-mono text-xs text-[#ff6d5a] bg-[#0d1017] px-3 py-2 rounded-lg border border-white/5">
+            <div className="mt-1 font-mono text-xs text-[#ff6d5a] bg-[#101012] px-3 py-2 rounded-lg border border-white/5">
               {node.id}
             </div>
           </div>
@@ -111,7 +111,7 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
               value={label}
               onChange={(e) => handleLabelChange(e.target.value)}
               placeholder="Custom Label"
-              className="mt-1 w-full bg-[#0d1017] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#ff6d5a] transition-colors"
+              className="mt-1 w-full bg-[#101012] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#ff6d5a] transition-colors"
             />
           </div>
         </div>
@@ -126,7 +126,7 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
             <div className="space-y-4">
               <CredentialPicker value={config.credential_id || ''} onChange={id => handleConfigChange('credential_id', id)} />
               <label className="block text-xs text-gray-300">HTTP error handling
-                <select className="mt-1 w-full rounded-lg bg-[#0d1017] p-2" value={config.error_policy || 'output'} onChange={event => handleConfigChange('error_policy', event.target.value)}>
+                <select className="mt-1 w-full rounded-lg bg-[#101012] p-2" value={config.error_policy || 'output'} onChange={event => handleConfigChange('error_policy', event.target.value)}>
                   <option value="output">Return all responses as outputs</option>
                   <option value="fail">Fail on non-2xx responses</option>
                 </select>
@@ -137,7 +137,7 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
                 <select
                   value={config.method || 'GET'}
                   onChange={(e) => handleConfigChange('method', e.target.value)}
-                  className="mt-1 w-full bg-[#0d1017] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#ff6d5a]"
+                  className="mt-1 w-full bg-[#101012] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#ff6d5a]"
                 >
                   <option value="GET">GET</option>
                   <option value="POST">POST</option>
@@ -154,7 +154,7 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
                   value={config.url || ''}
                   onChange={(e) => handleConfigChange('url', e.target.value)}
                   placeholder="https://api.example.com/endpoint"
-                  className="mt-1 w-full bg-[#0d1017] border border-white/10 rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-[#ff6d5a]"
+                  className="mt-1 w-full bg-[#101012] border border-white/10 rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-[#ff6d5a]"
                 />
               </div>
 
@@ -172,7 +172,7 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
                   }}
                   rows={3}
                   placeholder='{"Content-Type": "application/json"}'
-                  className="mt-1 w-full bg-[#0d1017] border border-white/10 rounded-lg p-3 text-xs text-cyan-300 font-mono focus:outline-none focus:border-[#ff6d5a]"
+                  className="mt-1 w-full bg-[#101012] border border-white/10 rounded-lg p-3 text-xs text-cyan-300 font-mono focus:outline-none focus:border-[#ff6d5a]"
                 />
               </div>
 
@@ -183,7 +183,7 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
                   onChange={(e) => handleConfigChange('body', e.target.value)}
                   rows={4}
                   placeholder='{"key": "value"}'
-                  className="mt-1 w-full bg-[#0d1017] border border-white/10 rounded-lg p-3 text-xs text-cyan-300 font-mono focus:outline-none focus:border-[#ff6d5a]"
+                  className="mt-1 w-full bg-[#101012] border border-white/10 rounded-lg p-3 text-xs text-cyan-300 font-mono focus:outline-none focus:border-[#ff6d5a]"
                 />
               </div>
             </div>
@@ -197,7 +197,7 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
                 value={config.seconds ?? 1}
                 onChange={(e) => handleConfigChange('seconds', Number(e.target.value) || 0)}
                 placeholder="1000"
-                className="mt-1 w-full bg-[#0d1017] border border-white/10 rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-[#ff6d5a]"
+                className="mt-1 w-full bg-[#101012] border border-white/10 rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-[#ff6d5a]"
               />
             </div>
           )}
@@ -210,7 +210,7 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
                 value={config.cron || '*/5 * * * *'}
                 onChange={(e) => handleConfigChange('cron', e.target.value)}
                 placeholder="*/5 * * * *"
-                className="mt-1 w-full bg-[#0d1017] border border-white/10 rounded-lg px-3 py-2 text-sm text-[#ff6d5a] font-mono focus:outline-none focus:border-[#ff6d5a]"
+                className="mt-1 w-full bg-[#101012] border border-white/10 rounded-lg px-3 py-2 text-sm text-[#ff6d5a] font-mono focus:outline-none focus:border-[#ff6d5a]"
               />
             </div>
           )}
@@ -224,7 +224,7 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
                   value={config.source_field || ''}
                   onChange={(e) => handleConfigChange('source_field', e.target.value)}
                   placeholder="status"
-                  className="mt-1 w-full bg-[#0d1017] border border-white/10 rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-[#ff6d5a]"
+                  className="mt-1 w-full bg-[#101012] border border-white/10 rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-[#ff6d5a]"
                 />
               </div>
 
@@ -233,7 +233,7 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
                 <select
                   value={config.operator || 'equals'}
                   onChange={(e) => handleConfigChange('operator', e.target.value)}
-                  className="mt-1 w-full bg-[#0d1017] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#ff6d5a]"
+                  className="mt-1 w-full bg-[#101012] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#ff6d5a]"
                 >
                   <option value="equals">Equals</option>
                   <option value="not_equal">Not equal</option>
@@ -248,7 +248,7 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
                   value={config.value || ''}
                   onChange={(e) => handleConfigChange('value', e.target.value)}
                   placeholder="200"
-                  className="mt-1 w-full bg-[#0d1017] border border-white/10 rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-[#ff6d5a]"
+                  className="mt-1 w-full bg-[#101012] border border-white/10 rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-[#ff6d5a]"
                 />
               </div>
             </div>
@@ -262,7 +262,7 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
                 onChange={(e) => handleConfigChange('message', e.target.value)}
                 rows={3}
                 placeholder="Workflow execution step completed..."
-                className="mt-1 w-full bg-[#0d1017] border border-white/10 rounded-lg p-3 text-xs text-blue-300 font-mono focus:outline-none focus:border-[#ff6d5a]"
+                className="mt-1 w-full bg-[#101012] border border-white/10 rounded-lg p-3 text-xs text-blue-300 font-mono focus:outline-none focus:border-[#ff6d5a]"
               />
             </div>
           )}
@@ -270,10 +270,10 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
           {(nodeType === 'condition' || nodeType === 'json_parser') && (
             <div className="space-y-3">
               <label className="block text-xs text-gray-300">Source node ID
-                <input value={config.source_node || ''} onChange={e => handleConfigChange('source_node', e.target.value)} className="mt-1 w-full bg-[#0d1017] rounded p-2" placeholder="http_req_1" />
+                <input value={config.source_node || ''} onChange={e => handleConfigChange('source_node', e.target.value)} className="mt-1 w-full bg-[#101012] rounded p-2" placeholder="http_req_1" />
               </label>
               {nodeType === 'json_parser' && <label className="block text-xs text-gray-300">Source field (JSON)
-                <input value={config.source_field || ''} onChange={e => handleConfigChange('source_field', e.target.value)} className="mt-1 w-full bg-[#0d1017] rounded p-2" placeholder="body" />
+                <input value={config.source_field || ''} onChange={e => handleConfigChange('source_field', e.target.value)} className="mt-1 w-full bg-[#101012] rounded p-2" placeholder="body" />
               </label>}
             </div>
           )}
@@ -282,7 +282,7 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
             <div className="p-3 bg-[#ff6d5a]/10 border border-[#ff6d5a]/30 rounded-lg text-xs text-gray-200 space-y-1">
               <p className="font-bold text-[#ff6d5a]">Signed Webhook Trigger</p>
               <p className="text-gray-400">Triggers on HTTP POST to:</p>
-              <p className="font-mono text-[#ff6d5a] bg-[#0d1017] p-1.5 rounded border border-white/10 break-all">
+              <p className="font-mono text-[#ff6d5a] bg-[#101012] p-1.5 rounded border border-white/10 break-all">
                 /webhook/&#123;workflow_id&#125;
               </p>
             </div>
@@ -292,17 +292,17 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
         <section className="space-y-2 border-t border-white/10 pt-3 text-xs text-gray-300">
           <h4 className="font-semibold">Retry policy</h4>
           <label className="block">Maximum attempts
-            <input type="number" min={1} max={5} className="mt-1 w-full rounded bg-[#0d1017] p-2" value={node.data.retry?.max_attempts ?? 1} onChange={event => { onUpdate(node.id, { retry: { max_attempts: Number(event.target.value), backoff_seconds: node.data.retry?.backoff_seconds ?? 0 } }); setHasUnsavedChanges(true); }} />
+            <input type="number" min={1} max={5} className="mt-1 w-full rounded bg-[#101012] p-2" value={node.data.retry?.max_attempts ?? 1} onChange={event => { onUpdate(node.id, { retry: { max_attempts: Number(event.target.value), backoff_seconds: node.data.retry?.backoff_seconds ?? 0 } }); setHasUnsavedChanges(true); }} />
           </label>
           <label className="block">Backoff (seconds)
-            <input type="number" min={0} max={30} className="mt-1 w-full rounded bg-[#0d1017] p-2" value={node.data.retry?.backoff_seconds ?? 0} onChange={event => { onUpdate(node.id, { retry: { max_attempts: node.data.retry?.max_attempts ?? 1, backoff_seconds: Number(event.target.value) } }); setHasUnsavedChanges(true); }} />
+            <input type="number" min={0} max={30} className="mt-1 w-full rounded bg-[#101012] p-2" value={node.data.retry?.backoff_seconds ?? 0} onChange={event => { onUpdate(node.id, { retry: { max_attempts: node.data.retry?.max_attempts ?? 1, backoff_seconds: Number(event.target.value) } }); setHasUnsavedChanges(true); }} />
           </label>
           <p className="text-gray-400">Enable retries for writes only when the destination supports idempotency.</p>
         </section>
       </div>
 
       {hasUnsavedChanges && (
-        <div className="border-t border-white/10 bg-[#10141d] p-4 space-y-3">
+        <div className="border-t border-white/10 bg-[#121214] p-4 space-y-3">
           {saveError && <p role="alert" className="text-xs text-rose-300">{saveError}</p>}
           <p className="text-xs text-amber-300">You have unsaved inspector changes.</p>
           <button

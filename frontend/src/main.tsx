@@ -9,9 +9,9 @@ createRoot(document.getElementById('root')!).render(
     <ClerkProvider publishableKey={import.meta.env.VITE_CLERK_PUBLISHABLE_KEY} afterSignOutUrl="/"
       appearance={{ variables: {
         colorPrimary: '#ff8069', colorPrimaryForeground: '#191511',
-        colorBackground: '#191c21', colorForeground: '#f2f1ee',
+        colorBackground: '#19191c', colorForeground: '#f2f1ee',
         colorMutedForeground: '#969ba5', colorNeutral: '#ffffff',
-        colorInput: '#14171b', colorInputForeground: '#f2f1ee',
+        colorInput: '#141416', colorInputForeground: '#f2f1ee',
         colorBorder: '#363a40', borderRadius: '0.5rem',
         fontFamily: 'Inter, ui-sans-serif, system-ui, sans-serif',
       } }}

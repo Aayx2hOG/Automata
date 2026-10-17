@@ -20,6 +20,8 @@ reused. Measurement scope and limitations are documented alongside the results.
 
 ## Architecture
 
+[Backend guide](backend/README.md) · [Detailed system design](backend/SYSTEM_DESIGN.md)
+
 ```text
 React editor → Go HTTP API ──────────────┐
 Signed webhooks → Go HTTP API           ├→ PostgreSQL: workflow versions, runs, outbox
@@ -169,7 +171,7 @@ workflow ownership.
 | POST | `/auth/refresh`, `/auth/logout` | Rotate or revoke refresh tokens |
 | GET | `/users/me` | Current user |
 | POST, GET | `/workflows` | Create or list workflows |
-| GET, PUT | `/workflows/{id}` | Read or publish a new workflow version |
+| GET, PUT, DELETE | `/workflows/{id}` | Read, publish a new version, or permanently delete an owned workflow |
 | POST | `/workflows/{id}/run` | Queue a manual run |
 | GET | `/runs/{id}` | Execution status and outputs |
 | GET | `/runs?limit=50&offset=0` | Owner's run history, maximum page size 100 |

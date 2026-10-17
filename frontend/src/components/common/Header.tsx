@@ -1,121 +1,52 @@
-import React from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { UserButton } from '@clerk/react';
-import { Bot, Layers, PlayCircle, Clock, Webhook, ShieldCheck, Plus, Home } from 'lucide-react';
+import * as Dialog from '@radix-ui/react-dialog';
+import { Command } from 'cmdk';
+import { Plus, Search, Menu, X, ChevronRight, GitBranch } from 'lucide-react';
+import { BrandMark } from './BrandMark';
 import { useAuth } from '../../context/useAuth';
+import { destinations, type WorkspaceTab } from '../../lib/navigation';
+import type { Workflow } from '../../types';
 
 interface HeaderProps {
-  activeTab: 'home' | 'workflows' | 'runs' | 'schedules' | 'webhooks';
-  setActiveTab: (tab: 'home' | 'workflows' | 'runs' | 'schedules' | 'webhooks') => void;
+  activeTab: WorkspaceTab;
+  setActiveTab: (tab: WorkspaceTab) => void;
   onNewWorkflow: () => void;
+  workflows: Workflow[];
+  onOpenWorkflow: (workflow: Workflow) => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab, onNewWorkflow }) => {
+export function Header({ activeTab, setActiveTab, onNewWorkflow, workflows, onOpenWorkflow }: HeaderProps) {
   const { user } = useAuth();
-
-  return (
-    <header className="h-16 border-b border-white/10 bg-[#10141d] backdrop-blur-xl sticky top-0 z-30 px-6 flex items-center justify-between">
-      {/* Brand Logo */}
-      <div className="flex items-center space-x-8">
-        <button className="flex items-center space-x-3 text-left" aria-label="Automata home" onClick={() => setActiveTab('home')}>
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#ff6d5a] to-[#ea4e43] flex items-center justify-center shadow-lg shadow-[#ff6d5a]/25">
-            <Bot size={20} className="text-white" />
-          </div>
-          <div>
-            <span className="font-extrabold text-base text-white tracking-wide">automata</span>
-            <span className="ml-2 text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#ff6d5a]/10 text-[#ff6d5a] border border-[#ff6d5a]/30 font-semibold">
-              Workflows
-            </span>
-          </div>
-        </button>
-
-        {/* Simplified Navigation Tabs */}
-        <nav className="hidden md:flex items-center space-x-1">
-          <button
-            onClick={() => setActiveTab('home')}
-            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${
-              activeTab === 'home'
-                ? 'bg-white/10 text-white shadow-inner'
-                : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
-            }`}
-          >
-            <Home size={15} />
-            <span>Overview</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('workflows')}
-            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${
-              activeTab === 'workflows'
-                ? 'bg-white/10 text-white shadow-inner'
-                : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
-            }`}
-          >
-            <Layers size={15} />
-            <span>Workflows</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('runs')}
-            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${
-              activeTab === 'runs'
-                ? 'bg-white/10 text-white shadow-inner'
-                : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
-            }`}
-          >
-            <PlayCircle size={15} />
-            <span>Executions</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('schedules')}
-            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${
-              activeTab === 'schedules'
-                ? 'bg-white/10 text-white shadow-inner'
-                : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
-            }`}
-          >
-            <Clock size={15} />
-            <span>Schedules</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('webhooks')}
-            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${
-              activeTab === 'webhooks'
-                ? 'bg-white/10 text-white shadow-inner'
-                : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
-            }`}
-          >
-            <Webhook size={15} />
-            <span>Webhooks</span>
-          </button>
-        </nav>
-      </div>
-
-      {/* User Actions & Add Workflow button */}
-      <div className="flex items-center space-x-3">
-        <div className="hidden sm:flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[11px] font-medium">
-          <ShieldCheck size={13} />
-          <span>Active</span>
-        </div>
-
-        <button
-          onClick={onNewWorkflow}
-          className="shrink-0 whitespace-nowrap flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-[#ff6d5a] to-[#ea4e43] hover:from-[#ff8575] hover:to-[#ff6d5a] text-white text-xs font-bold shadow-lg shadow-[#ff6d5a]/25 transition-all hover:scale-105 active:scale-95"
-        >
-          <Plus size={16} />
-          <span>Add Workflow</span>
-        </button>
-
-        {user && (
-          <div className="flex items-center space-x-2 pl-2 border-l border-white/10">
-            <div className="text-right hidden lg:block">
-              <div className="max-w-44 truncate text-xs font-semibold text-white" title={user.email}>{user.email}</div>
-            </div>
-            <UserButton />
-          </div>
-        )}
-      </div>
+  const searchReturnFocus = useRef<HTMLElement | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  useEffect(() => {
+    const handleKey = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault(); setSearchOpen(open => !open);
+      }
+    };
+    document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
+  }, []);
+  const navigate = (tab: WorkspaceTab) => { setActiveTab(tab); setMenuOpen(false); setSearchOpen(false); };
+  const sidebar = <>
+    <button className="workspace-brand" aria-label="Automata home" onClick={() => navigate('home')}><span className="brand-mark"><BrandMark size={32} /></span><span>Automata<span className="brand-caption">AUTOMATION PLATFORM</span></span></button>
+    <div className="workspace-label">Workspace</div>
+    <nav aria-label="Main navigation" className="workspace-nav">
+      {destinations.map(({ id, label, icon: Icon }) => <a key={id} href={`#/${id}`} aria-current={activeTab === id ? 'page' : undefined} onClick={event => { event.preventDefault(); navigate(id); }}><Icon size={18} /><span>{label}</span>{id === 'workflows' && <span aria-hidden="true" className="nav-count">{workflows.length}</span>}</a>)}
+    </nav>
+    <div className="sidebar-bottom"><GitBranch size={19} /><p>From idea to execution<span>Build visually. Run with confidence.</span></p></div>
+  </>;
+  return <>
+    <a href="#workspace-content" className="skip-link" onClick={event => { event.preventDefault(); document.getElementById('workspace-content')?.focus(); }}>Skip to content</a>
+    <aside className="workspace-sidebar">{sidebar}</aside>
+    <header className="workspace-topbar">
+      <Dialog.Root open={menuOpen} onOpenChange={setMenuOpen}><Dialog.Trigger asChild><button className="icon-button mobile-menu" aria-label="Open navigation"><Menu size={20} /></button></Dialog.Trigger><Dialog.Portal><Dialog.Overlay className="dialog-overlay" /><Dialog.Content className="mobile-sidebar" aria-describedby={undefined}><Dialog.Title className="sr-only">Workspace navigation</Dialog.Title><Dialog.Close className="icon-button sidebar-close" aria-label="Close navigation"><X size={18} /></Dialog.Close>{sidebar}</Dialog.Content></Dialog.Portal></Dialog.Root>
+      <div className="workspace-breadcrumb"><span>Workspace</span><ChevronRight size={14} /><strong>{destinations.find(tab => tab.id === activeTab)?.label}</strong></div>
+      <div className="topbar-actions"><button className="workspace-search" onClick={() => setSearchOpen(true)} aria-label="Search workspace"><Search size={16} /><span>Search workspace…</span><kbd>⌘ / Ctrl K</kbd></button><button className="primary-button" onClick={onNewWorkflow}><Plus size={16} /><span>Add Workflow</span></button>{user && <div className="workspace-account"><span title={user.email}>{user.email}</span><UserButton /></div>}</div>
     </header>
-  );
-};
+    <Dialog.Root open={searchOpen} onOpenChange={setSearchOpen}><Dialog.Portal><Dialog.Overlay className="dialog-overlay" /><Dialog.Content onOpenAutoFocus={() => { searchReturnFocus.current = document.activeElement as HTMLElement; }} onCloseAutoFocus={event => { event.preventDefault(); searchReturnFocus.current?.focus(); }} className="command-dialog" aria-describedby={undefined}><Dialog.Title className="sr-only">Search workspace</Dialog.Title><Command label="Workspace commands"><div className="command-search"><Search size={19} /><Command.Input placeholder="Search pages and workflows…" /><Dialog.Close className="icon-button" aria-label="Close search"><X size={18} /></Dialog.Close></div><Command.List><Command.Empty>No matching pages or workflows.</Command.Empty><Command.Group heading="Navigate">{destinations.map(({ id, label, icon: Icon }) => <Command.Item key={id} onSelect={() => navigate(id)}><Icon size={17} />{label}<ChevronRight size={14} /></Command.Item>)}</Command.Group><Command.Group heading="Actions"><Command.Item onSelect={() => { setSearchOpen(false); onNewWorkflow(); }}><Plus size={17} />Create new workflow</Command.Item></Command.Group>{workflows.length > 0 && <Command.Group heading="Workflows">{workflows.map(workflow => <Command.Item key={workflow.id} value={`workflow ${workflow.name} ${workflow.id}`} keywords={[workflow.description || '']} onSelect={() => { setSearchOpen(false); onOpenWorkflow(workflow); }}><GitBranch size={17} />{workflow.name}</Command.Item>)}</Command.Group>}</Command.List><div className="command-footer">↑ ↓ to navigate <span>↵ to open</span><span>Esc to close</span></div></Command></Dialog.Content></Dialog.Portal></Dialog.Root>
+  </>;
+}

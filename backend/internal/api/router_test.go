@@ -26,3 +26,13 @@ func TestCORSRequiresConfiguredOrigin(t *testing.T) {
 		}
 	}
 }
+
+func TestWorkflowDeleteRequiresAuthentication(t *testing.T) {
+	router := NewRouter(nil, zap.NewNop(), nil, nil, nil, nil, nil, nil, nil)
+	request := httptest.NewRequest("DELETE", "/workflows/11111111-1111-4111-8111-111111111111", nil)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != 401 {
+		t.Fatalf("unauthenticated delete returned %d", response.Code)
+	}
+}

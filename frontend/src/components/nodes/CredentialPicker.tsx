@@ -3,7 +3,7 @@ import { api } from '../../lib/api';
 import { Credential, CredentialInput } from '../../types';
 
 const emptyInput: CredentialInput = { name: '', host: '', header: 'Authorization', value: '' };
-const fieldClass = 'mt-1 w-full rounded-lg border border-white/10 bg-[#0d1017] p-2 text-xs text-white';
+const fieldClass = 'mt-1 w-full rounded-lg border border-white/10 bg-[#101012] p-2 text-xs text-white';
 
 export function CredentialPicker({ value, onChange }: { value: string; onChange: (id: string) => void }) {
   const [items, setItems] = useState<Credential[]>([]);

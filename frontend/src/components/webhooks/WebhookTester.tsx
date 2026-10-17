@@ -5,10 +5,11 @@ import { api, API_BASE } from '../../lib/api';
 
 interface WebhookTesterProps {
   workflows: Workflow[];
+  initialWorkflowId?: string;
 }
 
-export const WebhookTester: React.FC<WebhookTesterProps> = ({ workflows }) => {
-  const [selectedId, setSelectedId] = useState('');
+export const WebhookTester: React.FC<WebhookTesterProps> = ({ workflows, initialWorkflowId = '' }) => {
+  const [selectedId, setSelectedId] = useState(initialWorkflowId);
   const selectedWorkflow = workflows.find(w => w.id === selectedId) || workflows[0];
   const [payload, setPayload] = useState('{\n  "event": "user.signup",\n  "user": {\n    "id": 42,\n    "name": "Jane Doe"\n  }\n}');
   const [isSending, setIsSending] = useState(false);
@@ -66,11 +67,11 @@ curl ${quote(getWebhookUrl(workflowId))} -H 'Content-Type: application/json' -H 
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Endpoint Selector & Copy Tool */}
-        <div className="p-6 rounded-2xl bg-[#161a23] border border-white/10 shadow-xl space-y-6">
+        <div className="p-6 rounded-2xl bg-[#19191c] border border-white/10 shadow-xl space-y-6">
           <div>
             <label className="text-xs font-bold text-gray-300 uppercase tracking-wider">Select Workflow</label>
             {workflows.length === 0 ? (
-              <div className="mt-1 rounded-xl border border-dashed border-white/15 bg-[#0d1017] px-4 py-3 text-sm text-gray-500">
+              <div className="mt-1 rounded-xl border border-dashed border-white/15 bg-[#101012] px-4 py-3 text-sm text-gray-500">
                 No workflows created yet. Create a workflow to test its webhook.
               </div>
             ) : (
@@ -80,7 +81,7 @@ curl ${quote(getWebhookUrl(workflowId))} -H 'Content-Type: application/json' -H 
                   const wf = workflows.find((w) => w.id === e.target.value);
                   if (wf) setSelectedId(wf.id);
                 }}
-                className="mt-1 w-full bg-[#0d1017] border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#ff6d5a]"
+                className="mt-1 w-full bg-[#101012] border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#ff6d5a]"
               >
                 {workflows.map((wf) => (
                   <option key={wf.id} value={wf.id}>
@@ -98,7 +99,7 @@ curl ${quote(getWebhookUrl(workflowId))} -H 'Content-Type: application/json' -H 
             <div className="space-y-4">
               <div>
                 <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Webhook Endpoint URL</label>
-                <div className="mt-1 flex items-center space-x-2 bg-[#0d1017] p-3 rounded-xl border border-white/10 font-mono text-xs text-[#ff6d5a] break-all">
+                <div className="mt-1 flex items-center space-x-2 bg-[#101012] p-3 rounded-xl border border-white/10 font-mono text-xs text-[#ff6d5a] break-all">
                   <Globe size={16} className="text-[#ff6d5a] shrink-0" />
                   <span className="flex-1 font-bold">{getWebhookUrl(selectedWorkflow.id)}</span>
                 </div>
@@ -115,7 +116,7 @@ curl ${quote(getWebhookUrl(workflowId))} -H 'Content-Type: application/json' -H 
                     <span>{copied ? 'Copied!' : 'Copy cURL'}</span>
                   </button>
                 </div>
-                <div className="bg-[#0d1017] p-3 rounded-xl border border-white/10 font-mono text-xs text-emerald-400 overflow-x-auto">
+                <div className="bg-[#101012] p-3 rounded-xl border border-white/10 font-mono text-xs text-emerald-400 overflow-x-auto">
                   <pre>{getCurlSnippet(selectedWorkflow.id)}</pre>
                 </div>
               </div>
@@ -124,7 +125,7 @@ curl ${quote(getWebhookUrl(workflowId))} -H 'Content-Type: application/json' -H 
         </div>
 
         {/* Payload Test Console */}
-        <div className="p-6 rounded-2xl bg-[#161a23] border border-white/10 shadow-xl space-y-4">
+        <div className="p-6 rounded-2xl bg-[#19191c] border border-white/10 shadow-xl space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-bold text-white flex items-center space-x-2">
               <Terminal size={16} className="text-[#ff6d5a]" />
@@ -147,14 +148,14 @@ curl ${quote(getWebhookUrl(workflowId))} -H 'Content-Type: application/json' -H 
               value={payload}
               onChange={(e) => setPayload(e.target.value)}
               rows={6}
-              className="mt-1 w-full bg-[#0d1017] border border-white/10 rounded-xl p-3 text-xs text-emerald-400 font-mono focus:outline-none focus:border-[#ff6d5a]"
+              className="mt-1 w-full bg-[#101012] border border-white/10 rounded-xl p-3 text-xs text-emerald-400 font-mono focus:outline-none focus:border-[#ff6d5a]"
             />
           </div>
 
           {responseOutput && (
             <div className="space-y-1">
               <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Response</label>
-              <div className="p-3 rounded-xl bg-[#0d1017] border border-white/10 font-mono text-xs text-[#ff6d5a] max-h-36 overflow-y-auto font-bold">
+              <div className="p-3 rounded-xl bg-[#101012] border border-white/10 font-mono text-xs text-[#ff6d5a] max-h-36 overflow-y-auto font-bold">
                 <pre>{JSON.stringify(responseOutput, null, 2)}</pre>
               </div>
             </div>

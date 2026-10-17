@@ -5,7 +5,7 @@ export function NodeRunDetails({ nodes = [] }: { nodes?: NodeRun[] }) {
   return <div className="max-h-64 space-y-2 overflow-auto" aria-label="Node executions">
     {nodes.map(node => {
       const duration = node.started_at ? Math.max(0, (new Date(node.updated_at).getTime() - new Date(node.started_at).getTime()) / 1000) : null;
-      return <details key={node.node_id} className="rounded-lg border border-white/10 bg-[#0d1017] p-3 text-xs">
+      return <details key={node.node_id} className="rounded-lg border border-white/10 bg-[#101012] p-3 text-xs">
         <summary className="cursor-pointer break-all text-gray-200">
           {node.node_id} · <span className={node.status === 'failed' ? 'text-rose-300' : node.status === 'succeeded' ? 'text-emerald-300' : 'text-amber-300'}>{node.status}</span>
           {' · '}{node.attempts} {node.attempts === 1 ? 'attempt' : 'attempts'}

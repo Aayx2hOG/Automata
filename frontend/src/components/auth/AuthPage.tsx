@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { SignIn, SignUp, UserButton, useAuth } from '@clerk/react';
-import { ArrowRight, Bot, Check, Clock3, GitBranch, Globe2, LockKeyhole, RotateCcw, Webhook, Workflow } from 'lucide-react';
+import { ArrowRight, Check, Clock3, GitBranch, Globe2, LockKeyhole, RotateCcw, Webhook, Workflow } from 'lucide-react';
 import './auth.css';
+import { BrandMark } from '../common/BrandMark';
 
 interface AuthPageProps {
   pending?: boolean;
@@ -19,17 +20,17 @@ export const AuthPage = ({ pending = false, error, onRetry }: AuthPageProps) => 
       card: { background: 'transparent', boxShadow: 'none', padding: '28px' },
       headerTitle: { fontSize: '25px', letterSpacing: '-0.7px', fontWeight: '600' },
       headerSubtitle: { fontSize: '13px', lineHeight: '1.6' },
-      socialButtonsBlockButton: { minHeight: '46px', border: '1px solid #363a40', background: '#23262b' },
+      socialButtonsBlockButton: { minHeight: '46px', border: '1px solid #363a40', background: '#242427' },
       formButtonPrimary: { minHeight: '44px', boxShadow: 'none' },
       formFieldInput: { minHeight: '44px', border: '1px solid #363a40', boxShadow: 'none' },
-      footer: { background: '#191c21', backgroundImage: 'none' },
+      footer: { background: '#19191c', backgroundImage: 'none' },
     },
   };
 
   return (
     <div className="auth-page">
       <header className="auth-nav">
-        <a href="/" className="auth-brand" aria-label="Automata home"><span className="auth-brand-icon"><Bot size={23} /></span>automata<span className="auth-brand-dot">.</span></a>
+        <a href="/" className="auth-brand" aria-label="Automata home"><span className="auth-brand-icon"><BrandMark size={34} /></span>Automata</a>
         <nav aria-label="Account" className="auth-nav-actions">
           {isSignedIn ? <UserButton /> : <>
             <button className={mode === 'signin' ? 'auth-nav-link active' : 'auth-nav-link'} onClick={() => setMode('signin')}>Sign in</button>
@@ -65,7 +66,7 @@ export const AuthPage = ({ pending = false, error, onRetry }: AuthPageProps) => 
 
         <section className="auth-entry" aria-label="Your Automata account" aria-busy={pending}>
           <div className="auth-panel">
-            <div className="auth-panel-overline"><span className="auth-panel-mark"><Bot size={17} /></span> YOUR WORKSPACE AWAITS</div>
+            <div className="auth-panel-overline"><span className="auth-panel-mark"><BrandMark size={22} /></span> YOUR WORKSPACE AWAITS</div>
             {error ? <div className="auth-account-error">
               <h2>Let’s reconnect.</h2>
               <p role="alert">{error}</p>

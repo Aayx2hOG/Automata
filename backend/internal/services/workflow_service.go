@@ -214,3 +214,7 @@ func (s *WorkflowService) UpdateWorkflow(ctx context.Context, id, ownerID uuid.U
 func (s *WorkflowService) ListRuns(ctx context.Context, ownerID uuid.UUID, limit, offset int) ([]models.WorkflowRun, error) {
 	return s.runs.ListByOwner(ctx, ownerID, limit, offset)
 }
+
+func (s *WorkflowService) DeleteWorkflow(ctx context.Context, id, ownerID uuid.UUID) error {
+	return s.workflows.Delete(ctx, id, ownerID)
+}

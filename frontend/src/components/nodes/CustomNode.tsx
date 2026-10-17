@@ -140,7 +140,7 @@ export const CustomNode = memo(({ data, selected }: NodeProps) => {
 
   return (
     <div
-      className={`min-w-[240px] max-w-[320px] rounded-xl border bg-[#161a23] backdrop-blur-md shadow-2xl transition-all duration-200 ${
+      className={`min-w-[240px] max-w-[320px] rounded-xl border bg-[#19191c] backdrop-blur-md shadow-2xl transition-all duration-200 ${
         selected ? 'ring-2 ring-[#ff6d5a] shadow-[#ff6d5a]/20 border-[#ff6d5a]' : meta.border
       }`}
     >
@@ -150,7 +150,7 @@ export const CustomNode = memo(({ data, selected }: NodeProps) => {
           type="target"
           position={Position.Top}
           id="target"
-          className="!bg-[#ff6d5a] !w-3 !h-3 !-top-1.5 border-2 border-[#161a23]"
+          className="!bg-[#ff6d5a] !w-3 !h-3 !-top-1.5 border-2 border-[#19191c]"
         />
       )}
 
@@ -182,7 +182,7 @@ export const CustomNode = memo(({ data, selected }: NodeProps) => {
       </div>
 
       {/* Node Config Summary */}
-      <div className="p-3 text-[11px] text-gray-300 font-mono bg-[#0d1017]/80 rounded-b-xl break-all line-clamp-2">
+      <div className="p-3 text-[11px] text-gray-300 font-mono bg-[#101012]/80 rounded-b-xl break-all line-clamp-2">
         {getConfigSummary()}
       </div>
 
@@ -196,7 +196,7 @@ export const CustomNode = memo(({ data, selected }: NodeProps) => {
               position={Position.Bottom}
               id="true"
               style={{ left: '25%' }}
-              className="!bg-emerald-400 !w-3 !h-3 !-bottom-1.5 border-2 border-[#161a23]"
+              className="!bg-emerald-400 !w-3 !h-3 !-bottom-1.5 border-2 border-[#19191c]"
             />
           </div>
           <div className="relative flex items-center space-x-1 text-rose-400">
@@ -206,7 +206,7 @@ export const CustomNode = memo(({ data, selected }: NodeProps) => {
               position={Position.Bottom}
               id="false"
               style={{ left: '75%' }}
-              className="!bg-rose-400 !w-3 !h-3 !-bottom-1.5 border-2 border-[#161a23]"
+              className="!bg-rose-400 !w-3 !h-3 !-bottom-1.5 border-2 border-[#19191c]"
             />
           </div>
         </div>
@@ -215,7 +215,7 @@ export const CustomNode = memo(({ data, selected }: NodeProps) => {
           type="source"
           position={Position.Bottom}
           id="source"
-          className="!bg-[#ff6d5a] !w-3 !h-3 !-bottom-1.5 border-2 border-[#161a23]"
+          className="!bg-[#ff6d5a] !w-3 !h-3 !-bottom-1.5 border-2 border-[#19191c]"
         />
       )}
     </div>

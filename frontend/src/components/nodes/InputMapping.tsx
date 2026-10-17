@@ -7,7 +7,7 @@ const targets: Record<string, string[]> = {
 const fields: Record<string, string[]> = {
   http_request: ['status_code', 'body', 'success'], json_parser: ['parsed'], condition: ['result'], logger: ['logged_message'],
 };
-const inputClass = 'w-full rounded border border-white/10 bg-[#0d1017] p-2 text-xs text-white';
+const inputClass = 'w-full rounded border border-white/10 bg-[#101012] p-2 text-xs text-white';
 
 function readPath(output: unknown, path: string[]): unknown {
   let value = output;
